@@ -107,36 +107,6 @@ class BlockActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         try { unregisterReceiver(tickReceiver) } catch (_: Exception) {}
-        maybeRelaunch()
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        maybeRelaunch()
-    }
-
-    private fun maybeRelaunch() {
-        // FIX H2: In GENTLE mode, don't aggressively relaunch — allow the user to leave.
-        if (TimerState.strictness == TimerState.Strictness.GENTLE) return
-
-        if (isRelaunching) return
-        TimerState.load(applicationContext)
-        if (TimerState.phase == TimerState.Phase.LOCKED) {
-            // FIX M4: Check overlay permission before relaunching.
-            // If revoked at runtime, startActivity may fail on some OEMs.
-            if (!Settings.canDrawOverlays(this)) {
-                Log.w(TAG, "Overlay permission revoked — cannot relaunch block screen")
-                return
-            }
-            isRelaunching = true
-            val intent = Intent(this, BlockActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-            }
-            startActivity(intent)
-        }
     }
 
     override fun onDestroy() {

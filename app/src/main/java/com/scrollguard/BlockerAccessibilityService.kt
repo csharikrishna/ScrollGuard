@@ -13,12 +13,10 @@ class BlockerAccessibilityService : AccessibilityService() {
 
     private var lastLaunch = 0L
 
-    // FIX #1: TimerState.load() is called ONLY here (once per second via tick broadcast).
-    // It was previously called on every accessibility event — dozens of times/second —
-    // causing disk I/O lag and missed blocking windows.
+    // TimerState is maintained in memory by TimerService and MainActivity in the same process.
+    // Reading from memory is instantaneous and avoids SharedPreferences I/O race conditions.
     private val tickReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            TimerState.load(applicationContext)
             checkAndBlockCurrentApp()
         }
     }

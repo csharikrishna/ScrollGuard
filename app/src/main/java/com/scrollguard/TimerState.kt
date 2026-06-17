@@ -225,38 +225,40 @@ object TimerState {
             phaseEndTimeElapsed = nowElapsed + remaining
         }
 
-        // FIX C6: Bounded loop — max 10 transitions, then force IDLE.
-        // Previously used cycleCount>100 which allowed ~200 iterations.
+        // Check if offline for a massive amount of time (e.g. > 1 full cycle of all phases)
+        val cycleTimeMs = (freeDuration + lockDuration + allowDuration) * 1000L
+        if (nowWall > phaseEndTimeWall + cycleTimeMs) {
+            Log.w(TAG, "healState: Massive offline time detected, resetting to IDLE")
+            reset(context)
+            return
+        }
+
         val maxIterations = 10
         var iterations = 0
         var changed = false
 
+        // Use virtual time trackers to simulate advancing through missed phases
+        var virtualNowWall = phaseEndTimeWall
+        var virtualNowElapsed = phaseEndTimeElapsed
+
         while (isRunning() && iterations < maxIterations) {
             val hasTimePassed = if (phase == Phase.LOCKED) {
-                nowWall >= phaseEndTimeWall && nowElapsed >= phaseEndTimeElapsed
+                nowWall >= virtualNowWall && nowElapsed >= virtualNowElapsed
             } else {
-                nowWall >= phaseEndTimeWall || nowElapsed >= phaseEndTimeElapsed
+                nowWall >= virtualNowWall || nowElapsed >= virtualNowElapsed
             }
             if (!hasTimePassed) break
             changed = true
-            transitionNext(context, nowWall, nowElapsed)
+            transitionNext(context, virtualNowWall, virtualNowElapsed)
+            virtualNowWall = phaseEndTimeWall
+            virtualNowElapsed = phaseEndTimeElapsed
             iterations++
         }
 
-        // If we hit the iteration cap, the phone was off for a very long time.
-        // Just reset to the current phase's start rather than spinning further.
         if (iterations >= maxIterations && isRunning()) {
-            Log.w(TAG, "healState hit iteration cap ($maxIterations), stabilizing at phase=$phase")
-            // Re-anchor the current phase from now so the timer is fresh
-            val d = when (phase) {
-                Phase.FREE -> freeDuration * 1000
-                Phase.LOCKED -> lockDuration * 1000
-                Phase.ALLOWED -> allowDuration * 1000
-                Phase.IDLE -> 0L
-            }
-            phaseEndTimeWall = nowWall + d
-            phaseEndTimeElapsed = nowElapsed + d
-            changed = true
+            Log.w(TAG, "healState hit iteration cap ($maxIterations), forcing IDLE")
+            reset(context)
+            return
         }
 
         if (changed) save(context)

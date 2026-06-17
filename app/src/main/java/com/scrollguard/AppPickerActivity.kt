@@ -81,8 +81,8 @@ class AppPickerActivity : AppCompatActivity() {
                 val usm = getSystemService(USAGE_STATS_SERVICE) as UsageStatsManager
                 val end = System.currentTimeMillis()
                 val start = end - (1000 * 60 * 60 * 24) // 24 hours
-                usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
-                    .associateBy({ it.packageName }, { it.totalTimeInForeground })
+                usm.queryAndAggregateUsageStats(start, end)
+                    .mapValues { it.value.totalTimeInForeground }
             } else {
                 withContext(Dispatchers.Main) {
                     Snackbar.make(binding.root, "Grant Usage Access to see daily time spent per app", Snackbar.LENGTH_LONG)
