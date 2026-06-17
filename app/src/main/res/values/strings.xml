@@ -1,0 +1,59 @@
+<resources>
+    <string name="app_name">ScrollGuard</string>
+    <string name="admin_description">This app uses device administrator permissions to prevent unauthorized uninstallation during focus sessions.</string>
+    <string name="accessibility_description">ScrollGuard uses accessibility services to monitor when you open specific apps and block them during your focus session.</string>
+
+    <!-- Main Dashboard -->
+    <string name="ready">READY</string>
+    <string name="select_apps_start">Select apps and start your focus session</string>
+    <string name="enjoy_freely">Enjoy freely - Tracking active</string>
+    <string name="locked_put_phone_down">Locked - Put your phone down!</string>
+    <string name="quick_window">Quick window - Use wisely</string>
+    <string name="start_focus_session">START FOCUS SESSION</string>
+    <string name="end_session_pin">End Session (Verification Required)</string>
+    <string name="focus_configuration">FOCUS CONFIGURATION</string>
+    <string name="free_time_min">Free Time (min)</string>
+    <string name="lock_time_min">Lock Time (min)</string>
+    <string name="allow_time_min">Break Window (min)</string>
+    <string name="gentle">GENTLE</string>
+    <string name="nuclear">NUCLEAR</string>
+    <string name="strict_mode_uninstall">Strict Mode (Uninstall Protection)</string>
+    <string name="action_required">Action Required</string>
+    <string name="grant_permissions_blocking">Grant permissions to enable blocking</string>
+    <string name="enable_overlay">Enable Overlay</string>
+    <string name="enable_accessibility">Enable Accessibility</string>
+    <string name="ignore_battery_opt">Ignore Battery Optimization</string>
+
+    <!-- App Picker -->
+    <string name="choose_apps">Choose Apps</string>
+    <string name="search_apps">Search apps…</string>
+    <string name="apps_label">Apps</string>
+
+    <!-- Block Activity -->
+    <string name="focus_mode_active">FOCUS MODE ACTIVE</string>
+    <string name="short_form_addictive">Short-form content is addictive. \nTake a breath. Reclaim your time.</string>
+    <string name="stay_focused">STAY FOCUSED</string>
+    <string name="gentle_dismiss">Tap here to dismiss (Gentle Mode)</string>
+    <string name="stay_strong">Stay strong! 💪</string>
+
+    <!-- Analytics -->
+    <string name="analytics">Analytics</string>
+    <string name="time_saved_weekly">TIME SAVED (WEEKLY)</string>
+    <string name="total_discipline">Total Discipline</string>
+    <string name="cycles_defeated">Cycles Defeated</string>
+    <string name="no_data_yet">Start focusing to see your progress!</string>
+
+    <!-- PIN Activity -->
+    <string name="admin_access">ADMIN ACCESS</string>
+    <string name="pin_solve_placeholder">Solve to unlock</string>
+    <string name="pin_solve_format">Strict Mode: Solve %1$d + %2$d</string>
+    <string name="pin_success">Focus Session Ended. ✅</string>
+    <string name="pin_failure">Incorrect. Try again. ❌</string>
+
+    <!-- Toast Messages -->
+    <string name="toast_select_apps">Please select apps to monitor first!</string>
+    <string name="toast_overlay_required">Allow overlay permission first!</string>
+    <string name="toast_accessibility_required">Enable Accessibility first!</string>
+    <string name="toast_protection_enabled">ScrollGuard: Protection Enabled</string>
+    <string name="toast_protection_disabled">ScrollGuard: Protection Disabled</string>
+</resources>

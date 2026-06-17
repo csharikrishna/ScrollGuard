@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ScrollGuard" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#E1306C</item>
+        <item name="colorPrimaryVariant">#833AB4</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:windowBackground">#0A0A0F</item>
+        <item name="android:statusBarColor">#0A0A0F</item>
+        <item name="android:navigationBarColor">#0A0A0F</item>
+    </style>
+
+    <!-- Theme for BlockActivity to support edge-to-edge correctly -->
+    <style name="Theme.ScrollGuard.Block" parent="Theme.ScrollGuard">
+        <item name="android:windowBackground">@drawable/bg_gradient_dark</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+    </style>
+
+    <style name="PinButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:layout_width">72dp</item>
+        <item name="android:layout_height">56dp</item>
+        <item name="android:layout_margin">4dp</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textStyle">bold</item>
+        <item name="backgroundTint">#1E1E2A</item>
+    </style>
+</resources>
