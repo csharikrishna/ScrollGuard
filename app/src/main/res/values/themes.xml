@@ -40,13 +40,15 @@
         <item name="android:windowTranslucentNavigation">false</item>
     </style>
 
-    <style name="PinButton" parent="Widget.MaterialComponents.Button">
-        <item name="android:layout_width">72dp</item>
-        <item name="android:layout_height">56dp</item>
-        <item name="android:layout_margin">4dp</item>
-        <item name="android:textSize">20sp</item>
-        <item name="android:textColor">@color/primary</item>
-        <item name="android:textStyle">bold</item>
-        <item name="backgroundTint">@color/secondary</item>
+    <style name="PinButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:layout_width">88dp</item>
+        <item name="android:layout_height">88dp</item>
+        <item name="android:layout_margin">8dp</item>
+        <item name="android:textSize">36sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="cornerRadius">44dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
     </style>
 </resources>

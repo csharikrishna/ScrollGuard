@@ -70,12 +70,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        binding.btnFreeMinus.setOnClickListener { adjustTimer(binding.tvFreeMin, -5) }
-        binding.btnFreePlus.setOnClickListener { adjustTimer(binding.tvFreeMin, 5) }
-        binding.btnLockMinus.setOnClickListener { adjustTimer(binding.tvLockMin, -5) }
-        binding.btnLockPlus.setOnClickListener { adjustTimer(binding.tvLockMin, 5) }
-        binding.btnAllowMinus.setOnClickListener { adjustTimer(binding.tvAllowMin, -1) }
-        binding.btnAllowPlus.setOnClickListener { adjustTimer(binding.tvAllowMin, 1) }
+        binding.btnFreeMinus.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            adjustTimer(binding.tvFreeMin, -5)
+        }
+        binding.btnFreePlus.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            adjustTimer(binding.tvFreeMin, 5)
+        }
+        binding.btnLockMinus.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            adjustTimer(binding.tvLockMin, -5)
+        }
+        binding.btnLockPlus.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            adjustTimer(binding.tvLockMin, 5)
+        }
+        binding.btnAllowMinus.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            adjustTimer(binding.tvAllowMin, -1)
+        }
+        binding.btnAllowPlus.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            adjustTimer(binding.tvAllowMin, 1)
+        }
         binding.btnOverlay.setOnClickListener {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 "package:$packageName".toUri()))
@@ -90,12 +108,16 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        binding.btnApps.setOnClickListener {
+        binding.btnApps.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             startActivity(Intent(this, AppPickerActivity::class.java))
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         }
 
-        binding.btnStats.setOnClickListener {
+        binding.btnStats.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             startActivity(Intent(this, UsageStatsActivity::class.java))
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         }
 
         binding.toggleStrictness.addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -149,8 +171,10 @@ class MainActivity : AppCompatActivity() {
             checkAndStartTracking()
         }
 
-        binding.btnReset.setOnClickListener {
+        binding.btnReset.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             startActivity(Intent(this, PinActivity::class.java))
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
         }
     }
 

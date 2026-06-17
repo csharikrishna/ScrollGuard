@@ -30,7 +30,8 @@ class PinActivity : AppCompatActivity() {
         val nums = listOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 
         keys.forEachIndexed { i, btn ->
-            btn.setOnClickListener {
+            btn.setOnClickListener { v ->
+                v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (enteredPin.length < answerLength) {
                     enteredPin += nums[i]
                     updateDots()
@@ -48,14 +49,19 @@ class PinActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnDel.setOnClickListener {
+        binding.btnDel.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (enteredPin.isNotEmpty()) {
                 enteredPin = enteredPin.dropLast(1)
                 updateDots()
             }
         }
 
-        binding.btnCancel.setOnClickListener { finish() }
+        binding.btnCancel.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            finish()
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        }
     }
 
     private fun generateTask() {
@@ -84,6 +90,7 @@ class PinActivity : AppCompatActivity() {
         TimerState.reset(applicationContext)
         Toast.makeText(this, getString(R.string.pin_success), Toast.LENGTH_SHORT).show()
         finish()
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 
     private fun onFailure() {

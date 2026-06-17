@@ -34,7 +34,10 @@ class UsageStatsActivity : AppCompatActivity() {
         repository = DataRepository.getInstance(this)
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        binding.toolbar.setNavigationOnClickListener { finish() }
+        binding.toolbar.setNavigationOnClickListener {
+            finish()
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        }
 
         setupChart()
         loadStats()
@@ -83,7 +86,14 @@ class UsageStatsActivity : AppCompatActivity() {
                 binding.tvTotalSaved.text = "${h}h ${m}m"
                 binding.tvTotalCycles.text = totalCycles.toString()
 
-                if (records.isEmpty()) return@launch
+                if (records.isEmpty()) {
+                    binding.chart.visibility = android.view.View.GONE
+                    binding.layoutEmptyState.visibility = android.view.View.VISIBLE
+                    return@launch
+                } else {
+                    binding.chart.visibility = android.view.View.VISIBLE
+                    binding.layoutEmptyState.visibility = android.view.View.GONE
+                }
 
                 val entries = records.mapIndexed { index, record ->
                     BarEntry(index.toFloat(), record.secondsSaved / 60f)
@@ -113,5 +123,10 @@ class UsageStatsActivity : AppCompatActivity() {
                 Log.e(TAG, "Failed to load usage stats", e)
             }
         }
+    }
+
+    override fun finish() {
+        super.finish()
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 }
