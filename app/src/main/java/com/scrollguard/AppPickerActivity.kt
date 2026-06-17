@@ -1,12 +1,18 @@
 package com.scrollguard
 
+import android.app.AppOpsManager
+import android.app.usage.UsageStatsManager
+import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.Settings
 import android.text.Editable
+import android.text.TextWatcher
 import android.text.TextWatcher
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.snackbar.Snackbar
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.scrollguard.data.AppEntry
@@ -48,6 +54,16 @@ class AppPickerActivity : AppCompatActivity() {
         })
     }
 
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        } else {
+            appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
     private fun loadApps() {
         binding.progressBar.visibility = View.VISIBLE
 
@@ -61,6 +77,22 @@ class AppPickerActivity : AppCompatActivity() {
             val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
             val monitored = TimerState.monitoredApps
 
+            val usageStatsMap = if (hasUsageStatsPermission()) {
+                val usm = getSystemService(USAGE_STATS_SERVICE) as UsageStatsManager
+                val end = System.currentTimeMillis()
+                val start = end - (1000 * 60 * 60 * 24) // 24 hours
+                usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end)
+                    .associateBy({ it.packageName }, { it.totalTimeInForeground })
+            } else {
+                withContext(Dispatchers.Main) {
+                    Snackbar.make(binding.root, "Grant Usage Access to see daily time spent per app", Snackbar.LENGTH_LONG)
+                        .setAction("GRANT") {
+                            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                        }.show()
+                }
+                emptyMap<String, Long>()
+            }
+
             val items = packages
                 .filter { (it.flags and ApplicationInfo.FLAG_SYSTEM) == 0 || it.packageName == "com.instagram.android" }
                 .map { appInfo ->
@@ -68,10 +100,11 @@ class AppPickerActivity : AppCompatActivity() {
                         packageName = appInfo.packageName,
                         appName = pm.getApplicationLabel(appInfo).toString(),
                         icon = pm.getApplicationIcon(appInfo),
-                        isMonitored = monitored.contains(appInfo.packageName)
+                        isMonitored = monitored.contains(appInfo.packageName),
+                        usageTimeMillis = usageStatsMap[appInfo.packageName] ?: 0L
                     )
                 }
-                .sortedBy { it.appName.lowercase() }
+                .sortedWith(compareByDescending<AppPickerItem> { it.usageTimeMillis }.thenBy { it.appName.lowercase() })
 
             withContext(Dispatchers.Main) {
                 binding.progressBar.visibility = View.GONE

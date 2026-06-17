@@ -51,9 +51,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadSavedConfig() {
         TimerState.load(this)
-        binding.etFreeMin.setText((TimerState.freeDuration / 60).toString())
-        binding.etLockMin.setText((TimerState.lockDuration / 60).toString())
-        binding.etAllowMin.setText((TimerState.allowDuration / 60).toString())
+        binding.tvFreeMin.text = (TimerState.freeDuration / 60).toString()
+        binding.tvLockMin.text = (TimerState.lockDuration / 60).toString()
+        binding.tvAllowMin.text = (TimerState.allowDuration / 60).toString()
         if (TimerState.strictness == TimerState.Strictness.GENTLE) {
             binding.toggleStrictness.check(R.id.btnGentle)
         } else {
@@ -61,7 +61,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun adjustTimer(tv: android.widget.TextView, delta: Int) {
+        val current = tv.text.toString().toIntOrNull() ?: 0
+        val next = (current + delta).coerceIn(1, 1440)
+        tv.text = next.toString()
+    }
+
     private fun setupListeners() {
+        binding.btnFreeMinus.setOnClickListener { adjustTimer(binding.tvFreeMin, -5) }
+        binding.btnFreePlus.setOnClickListener { adjustTimer(binding.tvFreeMin, 5) }
+        binding.btnLockMinus.setOnClickListener { adjustTimer(binding.tvLockMin, -5) }
+        binding.btnLockPlus.setOnClickListener { adjustTimer(binding.tvLockMin, 5) }
+        binding.btnAllowMinus.setOnClickListener { adjustTimer(binding.tvAllowMin, -1) }
+        binding.btnAllowPlus.setOnClickListener { adjustTimer(binding.tvAllowMin, 1) }
         binding.btnOverlay.setOnClickListener {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 "package:$packageName".toUri()))
@@ -111,17 +123,17 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             // FIX M2: Validate and clamp duration inputs to safe range
-            val freeRaw = binding.etFreeMin.text.toString().toLongOrNull() ?: 60
-            val lockRaw = binding.etLockMin.text.toString().toLongOrNull() ?: 10
-            val allowRaw = binding.etAllowMin.text.toString().toLongOrNull() ?: 2
+            val freeRaw = binding.tvFreeMin.text.toString().toLongOrNull() ?: 60
+            val lockRaw = binding.tvLockMin.text.toString().toLongOrNull() ?: 10
+            val allowRaw = binding.tvAllowMin.text.toString().toLongOrNull() ?: 2
             val free = TimerState.clampDuration(freeRaw)
             val lock = TimerState.clampDuration(lockRaw)
             val allow = TimerState.clampDuration(allowRaw)
 
             // Update UI to reflect clamped values if they were changed
-            if (free != freeRaw) binding.etFreeMin.setText(free.toString())
-            if (lock != lockRaw) binding.etLockMin.setText(lock.toString())
-            if (allow != allowRaw) binding.etAllowMin.setText(allow.toString())
+            if (free != freeRaw) binding.tvFreeMin.text = free.toString()
+            if (lock != lockRaw) binding.tvLockMin.text = lock.toString()
+            if (allow != allowRaw) binding.tvAllowMin.text = allow.toString()
 
             TimerState.freeDuration = free * 60
             TimerState.lockDuration = lock * 60
@@ -232,9 +244,12 @@ class MainActivity : AppCompatActivity() {
                 binding.tvSub.text = getString(R.string.select_apps_start)
                 binding.btnStart.visibility  = View.VISIBLE
                 binding.btnReset.visibility  = View.GONE
-                binding.etFreeMin.isEnabled  = true
-                binding.etLockMin.isEnabled  = true
-                binding.etAllowMin.isEnabled = true
+                binding.btnFreeMinus.isEnabled  = true
+                binding.btnFreePlus.isEnabled   = true
+                binding.btnLockMinus.isEnabled  = true
+                binding.btnLockPlus.isEnabled   = true
+                binding.btnAllowMinus.isEnabled = true
+                binding.btnAllowPlus.isEnabled  = true
                 binding.btnGentle.isEnabled  = true
                 binding.btnNuclear.isEnabled = true
             }
@@ -247,9 +262,12 @@ class MainActivity : AppCompatActivity() {
                 }
                 binding.btnStart.visibility  = View.GONE
                 binding.btnReset.visibility  = View.VISIBLE
-                binding.etFreeMin.isEnabled  = false
-                binding.etLockMin.isEnabled  = false
-                binding.etAllowMin.isEnabled = false
+                binding.btnFreeMinus.isEnabled  = false
+                binding.btnFreePlus.isEnabled   = false
+                binding.btnLockMinus.isEnabled  = false
+                binding.btnLockPlus.isEnabled   = false
+                binding.btnAllowMinus.isEnabled = false
+                binding.btnAllowPlus.isEnabled  = false
                 binding.btnGentle.isEnabled  = false
                 binding.btnNuclear.isEnabled = false
             }

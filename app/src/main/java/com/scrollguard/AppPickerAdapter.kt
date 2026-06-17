@@ -26,6 +26,16 @@ class AppPickerAdapter(
         fun bind(item: AppPickerItem) {
             binding.ivIcon.setImageDrawable(item.icon)
             binding.tvAppName.text = item.appName
+            
+            if (item.usageTimeMillis > 0) {
+                binding.tvUsageTime.visibility = android.view.View.VISIBLE
+                val hours = item.usageTimeMillis / (1000 * 60 * 60)
+                val mins = (item.usageTimeMillis / (1000 * 60)) % 60
+                binding.tvUsageTime.text = if (hours > 0) "Used today: ${hours}h ${mins}m" else "Used today: ${mins}m"
+            } else {
+                binding.tvUsageTime.visibility = android.view.View.GONE
+            }
+
             binding.cbMonitored.setOnCheckedChangeListener(null)
             binding.cbMonitored.isChecked = item.isMonitored
 

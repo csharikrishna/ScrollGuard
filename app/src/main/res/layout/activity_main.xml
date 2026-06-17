@@ -17,7 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/app_name"
-            app:titleTextColor="#FFFFFF" />
+            app:titleTextColor="@color/text_primary" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
@@ -34,11 +34,9 @@
 
             <!-- Timer Card -->
             <com.google.android.material.card.MaterialCardView
+                style="@style/ScrollGuard.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="24dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="#1AFFFFFF"
                 android:layout_marginBottom="24dp">
 
                 <LinearLayout
@@ -53,7 +51,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/ready"
-                        android:textColor="#FF4081"
+                        android:textColor="@color/accent"
                         android:textStyle="bold"
                         android:letterSpacing="0.3"
                         android:textSize="14sp" />
@@ -63,7 +61,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="00:00:00"
-                        android:textColor="#FFFFFF"
+                        android:textColor="@color/text_primary"
                         android:textSize="56sp"
                         android:textStyle="bold"
                         android:fontFamily="sans-serif-condensed-light"
@@ -75,7 +73,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/select_apps_start"
-                        android:textColor="#B3FFFFFF"
+                        android:textColor="@color/text_secondary"
                         android:textSize="14sp"
                         android:gravity="center" />
 
@@ -91,13 +89,11 @@
 
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/btnApps"
+                    style="@style/ScrollGuard.Card"
                     android:layout_width="0dp"
                     android:layout_height="100dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="8dp"
-                    app:cardCornerRadius="20dp"
-                    app:cardElevation="0dp"
-                    app:cardBackgroundColor="#1AFFFFFF"
                     android:clickable="true"
                     android:focusable="true">
                     <LinearLayout
@@ -109,12 +105,12 @@
                             android:layout_width="28dp"
                             android:layout_height="28dp"
                             android:src="@android:drawable/ic_menu_agenda"
-                            app:tint="#833AB4" />
+                            app:tint="@color/secondary" />
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/apps_label"
-                            android:textColor="#FFFFFF"
+                            android:textColor="@color/text_primary"
                             android:textStyle="bold"
                             android:layout_marginTop="8dp" />
                     </LinearLayout>
@@ -122,13 +118,11 @@
 
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/btnStats"
+                    style="@style/ScrollGuard.Card"
                     android:layout_width="0dp"
                     android:layout_height="100dp"
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
-                    app:cardCornerRadius="20dp"
-                    app:cardElevation="0dp"
-                    app:cardBackgroundColor="#1AFFFFFF"
                     android:clickable="true"
                     android:focusable="true">
                     <LinearLayout
@@ -140,12 +134,12 @@
                             android:layout_width="28dp"
                             android:layout_height="28dp"
                             android:src="@android:drawable/ic_menu_sort_by_size"
-                            app:tint="#FFCC00" />
+                            app:tint="@color/warning" />
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/analytics"
-                            android:textColor="#FFFFFF"
+                            android:textColor="@color/text_primary"
                             android:textStyle="bold"
                             android:layout_marginTop="8dp" />
                     </LinearLayout>
@@ -154,11 +148,9 @@
 
             <!-- Configuration Card -->
             <com.google.android.material.card.MaterialCardView
+                style="@style/ScrollGuard.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="#1AFFFFFF"
                 android:layout_marginBottom="24dp">
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -169,7 +161,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/focus_configuration"
-                        android:textColor="#B3FFFFFF"
+                        android:textColor="@color/text_secondary"
                         android:textStyle="bold"
                         android:textSize="12sp"
                         android:letterSpacing="0.1"
@@ -186,17 +178,44 @@
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
                             android:text="@string/free_time_min"
-                            android:textColor="#FFFFFF" />
-                        <EditText
-                            android:id="@+id/etFreeMin"
-                            android:layout_width="60dp"
+                            android:textColor="@color/text_primary" />
+                        <LinearLayout
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:text="60"
-                            android:textColor="#FFFFFF"
-                            android:backgroundTint="#FF4081"
-                            android:gravity="center"
-                            android:importantForAutofill="no" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <Button
+                                android:id="@+id/btnFreeMinus"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:text="-"
+                                android:textSize="20sp"
+                                android:textColor="@color/text_primary"
+                                android:minWidth="0dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"/>
+                            <TextView
+                                android:id="@+id/tvFreeMin"
+                                android:layout_width="50dp"
+                                android:layout_height="wrap_content"
+                                android:text="60"
+                                android:textColor="@color/text_primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:gravity="center"/>
+                            <Button
+                                android:id="@+id/btnFreePlus"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:text="+"
+                                android:textSize="20sp"
+                                android:textColor="@color/text_primary"
+                                android:minWidth="0dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"/>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <LinearLayout
@@ -209,17 +228,44 @@
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
                             android:text="@string/lock_time_min"
-                            android:textColor="#FFFFFF" />
-                        <EditText
-                            android:id="@+id/etLockMin"
-                            android:layout_width="60dp"
+                            android:textColor="@color/text_primary" />
+                        <LinearLayout
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:text="10"
-                            android:textColor="#FFFFFF"
-                            android:backgroundTint="#FF4081"
-                            android:gravity="center"
-                            android:importantForAutofill="no" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <Button
+                                android:id="@+id/btnLockMinus"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:text="-"
+                                android:textSize="20sp"
+                                android:textColor="@color/text_primary"
+                                android:minWidth="0dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"/>
+                            <TextView
+                                android:id="@+id/tvLockMin"
+                                android:layout_width="50dp"
+                                android:layout_height="wrap_content"
+                                android:text="10"
+                                android:textColor="@color/text_primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:gravity="center"/>
+                            <Button
+                                android:id="@+id/btnLockPlus"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:text="+"
+                                android:textSize="20sp"
+                                android:textColor="@color/text_primary"
+                                android:minWidth="0dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"/>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <LinearLayout
@@ -233,17 +279,44 @@
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
                             android:text="@string/allow_time_min"
-                            android:textColor="#FFFFFF" />
-                        <EditText
-                            android:id="@+id/etAllowMin"
-                            android:layout_width="60dp"
+                            android:textColor="@color/text_primary" />
+                        <LinearLayout
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:text="2"
-                            android:textColor="#FFFFFF"
-                            android:backgroundTint="#FF4081"
-                            android:gravity="center"
-                            android:importantForAutofill="no" />
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <Button
+                                android:id="@+id/btnAllowMinus"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:text="-"
+                                android:textSize="20sp"
+                                android:textColor="@color/text_primary"
+                                android:minWidth="0dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"/>
+                            <TextView
+                                android:id="@+id/tvAllowMin"
+                                android:layout_width="50dp"
+                                android:layout_height="wrap_content"
+                                android:text="2"
+                                android:textColor="@color/text_primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold"
+                                android:gravity="center"/>
+                            <Button
+                                android:id="@+id/btnAllowPlus"
+                                style="@style/Widget.MaterialComponents.Button.TextButton"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:text="+"
+                                android:textSize="20sp"
+                                android:textColor="@color/text_primary"
+                                android:minWidth="0dp"
+                                android:insetTop="0dp"
+                                android:insetBottom="0dp"/>
+                        </LinearLayout>
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButtonToggleGroup
@@ -260,8 +333,8 @@
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
                             android:text="@string/gentle"
-                            android:textColor="#FFFFFF"
-                            app:strokeColor="#1AFFFFFF"/>
+                            android:textColor="@color/text_primary"
+                            app:strokeColor="@color/bg_surface"/>
                         <Button
                             android:id="@+id/btnNuclear"
                             style="?attr/materialButtonOutlinedStyle"
@@ -269,8 +342,8 @@
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
                             android:text="@string/nuclear"
-                            android:textColor="#FFFFFF"
-                            app:strokeColor="#1AFFFFFF"/>
+                            android:textColor="@color/text_primary"
+                            app:strokeColor="@color/bg_surface"/>
                     </com.google.android.material.button.MaterialButtonToggleGroup>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -278,10 +351,9 @@
             <!-- Permissions Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardPermissions"
+                style="@style/ScrollGuard.Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
                 app:cardBackgroundColor="#33FF4444"
                 android:layout_marginBottom="24dp">
                 <LinearLayout
@@ -304,8 +376,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/enable_overlay"
-                        android:textColor="#FFFFFF"
-                        app:strokeColor="#FFFFFF"
+                        android:textColor="@color/text_primary"
+                        app:strokeColor="@color/text_primary"
                         android:layout_marginBottom="8dp" />
                     <Button
                         android:id="@+id/btnSetup"
@@ -313,8 +385,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/enable_accessibility"
-                        android:textColor="#FFFFFF"
-                        app:strokeColor="#FFFFFF"
+                        android:textColor="@color/text_primary"
+                        app:strokeColor="@color/text_primary"
                         android:layout_marginBottom="8dp"/>
                     <Button
                         android:id="@+id/btnBattery"
@@ -322,8 +394,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/ignore_battery_opt"
-                        android:textColor="#FFFFFF"
-                        app:strokeColor="#FFFFFF"/>
+                        android:textColor="@color/text_primary"
+                        app:strokeColor="@color/text_primary"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -332,20 +404,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/strict_mode_uninstall"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_primary"
                 android:textStyle="bold"
-                app:trackTint="#E1306C"
+                app:trackTint="@color/primary"
                 android:layout_marginBottom="32dp" />
 
             <Button
                 android:id="@+id/btnStart"
+                style="@style/ScrollGuard.Button"
                 android:layout_width="match_parent"
                 android:layout_height="64dp"
                 android:text="@string/start_focus_session"
                 android:textSize="16sp"
-                android:textStyle="bold"
-                app:cornerRadius="32dp"
-                android:backgroundTint="#E1306C"
+                android:backgroundTint="@color/primary"
                 android:elevation="8dp" />
 
             <Button
@@ -354,7 +425,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/end_session_pin"
-                android:textColor="#999999"
+                android:textColor="@color/text_muted"
                 android:layout_marginTop="16dp"
                 android:visibility="gone" />
 

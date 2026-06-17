@@ -6,5 +6,6 @@ data class AppPickerItem(
     val packageName: String,
     val appName: String,
     val icon: Drawable?,
-    var isMonitored: Boolean
+    var isMonitored: Boolean,
+    val usageTimeMillis: Long = 0L
 )
