@@ -4,7 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_gradient_dark">
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -19,7 +20,8 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             app:title="@string/choose_apps"
-            app:titleTextColor="#FFFFFF" />
+            app:title="@string/choose_apps"
+            app:titleTextColor="@color/text_primary" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/searchLayout"
@@ -29,17 +31,19 @@
             android:layout_marginHorizontal="16dp"
             android:layout_marginBottom="8dp"
             android:hint="@string/search_apps"
-            app:hintTextColor="#B3FFFFFF"
+            android:hint="@string/search_apps"
+            app:hintTextColor="@color/text_secondary"
             app:startIconDrawable="@android:drawable/ic_menu_search"
-            app:startIconTint="#B3FFFFFF"
-            app:boxStrokeColor="#B3FFFFFF"
-            app:placeholderTextColor="#B3FFFFFF">
+            app:startIconTint="@color/text_secondary"
+            app:boxStrokeColor="@color/text_secondary"
+            app:placeholderTextColor="@color/text_secondary">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/etSearch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textColor="#FFFFFF" />
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_primary" />
         </com.google.android.material.textfield.TextInputLayout>
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -56,8 +60,9 @@
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="64dp"
+        android:layout_width="64dp"
         android:layout_height="64dp"
-        android:indeterminateTint="#FF4081"
+        android:indeterminateTint="@color/primary"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

@@ -4,17 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_gradient_dark">
-
-    <!-- Decorative Glow -->
-    <View
-        android:layout_width="300dp"
-        android:layout_height="300dp"
-        android:background="@drawable/shape_glow"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="-100dp"
-        android:layout_marginEnd="-100dp" />
+    android:background="@color/bg_dark">
 
     <!-- Progress Ring -->
     <ProgressBar
@@ -51,8 +41,8 @@
         android:layout_marginHorizontal="32dp"
         android:layout_marginTop="48dp"
         app:cardCornerRadius="24dp"
-        app:cardElevation="0dp"
-        app:cardBackgroundColor="#1AFFFFFF"
+        app:cardElevation="2dp"
+        app:cardBackgroundColor="@color/bg_surface"
         app:layout_constraintTop_toBottomOf="@id/lottieWarning"
         app:layout_constraintBottom_toTopOf="@id/tvSubMessage">
 
@@ -68,7 +58,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/focus_mode_active"
-                android:textColor="#FF4081"
+                android:textColor="@color/primary"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.3" />
@@ -78,7 +68,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="00:00"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/text_primary"
                 android:textSize="64sp"
                 android:textStyle="bold"
                 android:fontFamily="sans-serif-condensed-light"
@@ -91,7 +81,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="@string/short_form_addictive"
-        android:textColor="#B3FFFFFF"
+        android:textColor="@color/text_secondary"
         android:textSize="16sp"
         android:gravity="center"
         android:lineSpacingExtra="4dp"

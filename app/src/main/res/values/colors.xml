@@ -1,25 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Brand Colors -->
-    <color name="primary">#E1306C</color>
-    <color name="primary_variant">#C13584</color>
-    <color name="secondary">#833AB4</color>
-    <color name="accent">#FF4081</color>
+    <color name="primary">#1A73E8</color>       <!-- Google Blue -->
+    <color name="primary_variant">#1557B0</color>
+    <color name="secondary">#E8F0FE</color>     <!-- Light Blue -->
+    <color name="accent">#1A73E8</color>
 
     <!-- Backgrounds -->
-    <color name="bg_dark">#0A0A0F</color>
-    <color name="bg_surface">#1AFFFFFF</color> <!-- Glass effect -->
-    <color name="bg_surface_intense">#26FFFFFF</color>
+    <color name="bg_dark">#F8F9FA</color>       <!-- Off-white background -->
+    <color name="bg_surface">#FFFFFF</color>    <!-- Pure white cards -->
+    <color name="bg_surface_intense">#F1F3F4</color>
 
     <!-- Status Colors -->
-    <color name="error">#FF5252</color>
-    <color name="success">#4CAF50</color>
-    <color name="warning">#FFC107</color>
+    <color name="error">#D93025</color>
+    <color name="success">#1E8E3E</color>
+    <color name="warning">#F9AB00</color>
 
     <!-- Text -->
-    <color name="text_primary">#FFFFFF</color>
-    <color name="text_secondary">#B3FFFFFF</color>
-    <color name="text_muted">#80FFFFFF</color>
+    <color name="text_primary">#202124</color>   <!-- Dark Gray -->
+    <color name="text_secondary">#5F6368</color> <!-- Medium Gray -->
+    <color name="text_muted">#80868B</color>     <!-- Light Gray -->
 
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>

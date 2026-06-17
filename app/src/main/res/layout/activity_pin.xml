@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#0A0A0F"
+    android:background="@color/bg_dark"
     android:gravity="center"
     android:padding="32dp">
 
@@ -22,7 +22,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/admin_access"
-        android:textColor="#FFFFFF"
+        android:textColor="@color/text_primary"
         android:textSize="20sp"
         android:textStyle="bold"
         android:letterSpacing="0.2"
@@ -33,7 +33,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Solve to unlock: 24 + 13"
-        android:textColor="#E1306C"
+        android:textColor="@color/primary"
         android:textSize="16sp"
         android:layout_marginBottom="24dp"/>
 
@@ -42,7 +42,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="○  ○  ○  ○"
-        android:textColor="#E1306C"
+        android:textColor="@color/primary"
         android:textSize="32sp"
         android:layout_marginBottom="40dp" />
 
