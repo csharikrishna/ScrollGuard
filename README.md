@@ -19,6 +19,16 @@
 
 ---
 
+## Download & Install
+
+The easiest way to get ScrollGuard is to download the pre-built APK from the Releases page.
+
+1. Go to the [Releases](https://github.com/csharikrishna/ScrollGuard/releases) page.
+2. Download the latest `app-release.apk` (or `app-debug.apk`).
+3. Open the downloaded file on your Android device and tap **Install** (you may need to allow "Install from unknown sources" in your settings).
+
+---
+
 ## How It Works
 
 ```
