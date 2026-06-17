@@ -95,7 +95,8 @@
                     android:layout_weight="1"
                     android:layout_marginEnd="8dp"
                     android:clickable="true"
-                    android:focusable="true">
+                    android:focusable="true"
+                    android:contentDescription="@string/choose_apps">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -124,7 +125,8 @@
                     android:layout_weight="1"
                     android:layout_marginStart="8dp"
                     android:clickable="true"
-                    android:focusable="true">
+                    android:focusable="true"
+                    android:contentDescription="@string/analytics">
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
@@ -194,7 +196,8 @@
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
                                 android:insetTop="0dp"
-                                android:insetBottom="0dp"/>
+                                android:insetBottom="0dp"
+                                android:contentDescription="@string/cd_decrease_free"/>
                             <TextView
                                 android:id="@+id/tvFreeMin"
                                 android:layout_width="50dp"
@@ -214,7 +217,8 @@
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
                                 android:insetTop="0dp"
-                                android:insetBottom="0dp"/>
+                                android:insetBottom="0dp"
+                                android:contentDescription="@string/cd_increase_free"/>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -244,7 +248,8 @@
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
                                 android:insetTop="0dp"
-                                android:insetBottom="0dp"/>
+                                android:insetBottom="0dp"
+                                android:contentDescription="@string/cd_decrease_lock"/>
                             <TextView
                                 android:id="@+id/tvLockMin"
                                 android:layout_width="50dp"
@@ -264,7 +269,8 @@
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
                                 android:insetTop="0dp"
-                                android:insetBottom="0dp"/>
+                                android:insetBottom="0dp"
+                                android:contentDescription="@string/cd_increase_lock"/>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -295,7 +301,8 @@
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
                                 android:insetTop="0dp"
-                                android:insetBottom="0dp"/>
+                                android:insetBottom="0dp"
+                                android:contentDescription="@string/cd_decrease_break"/>
                             <TextView
                                 android:id="@+id/tvAllowMin"
                                 android:layout_width="50dp"
@@ -315,7 +322,8 @@
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
                                 android:insetTop="0dp"
-                                android:insetBottom="0dp"/>
+                                android:insetBottom="0dp"
+                                android:contentDescription="@string/cd_increase_break"/>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -345,6 +353,16 @@
                             android:textColor="@color/text_primary"
                             app:strokeColor="@color/bg_surface"/>
                     </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                    <TextView
+                        android:id="@+id/tvModeDescription"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginHorizontal="4dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        tools:text="@string/mode_desc_nuclear" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -17,6 +17,16 @@
     <string name="allow_time_min">Break Window (min)</string>
     <string name="gentle">GENTLE</string>
     <string name="nuclear">NUCLEAR</string>
+    <string name="mode_desc_gentle">Allows you to bypass the block screen after 15 seconds if you urgently need the app.</string>
+    <string name="mode_desc_nuclear">Aggressive mode. The block screen cannot be dismissed or bypassed until the timer runs out.</string>
+    
+    <string name="cd_decrease_free">Decrease free time by 5 minutes</string>
+    <string name="cd_increase_free">Increase free time by 5 minutes</string>
+    <string name="cd_decrease_lock">Decrease lock time by 5 minutes</string>
+    <string name="cd_increase_lock">Increase lock time by 5 minutes</string>
+    <string name="cd_decrease_break">Decrease break time by 1 minute</string>
+    <string name="cd_increase_break">Increase break time by 1 minute</string>
+    
     <string name="strict_mode_uninstall">Strict Mode (Uninstall Protection)</string>
     <string name="action_required">Action Required</string>
     <string name="grant_permissions_blocking">Grant permissions to enable blocking</string>

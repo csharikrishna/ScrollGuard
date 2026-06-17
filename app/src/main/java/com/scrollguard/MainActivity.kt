@@ -56,8 +56,10 @@ class MainActivity : AppCompatActivity() {
         binding.tvAllowMin.text = (TimerState.allowDuration / 60).toString()
         if (TimerState.strictness == TimerState.Strictness.GENTLE) {
             binding.toggleStrictness.check(R.id.btnGentle)
+            binding.tvModeDescription.text = getString(R.string.mode_desc_gentle)
         } else {
             binding.toggleStrictness.check(R.id.btnNuclear)
+            binding.tvModeDescription.text = getString(R.string.mode_desc_nuclear)
         }
     }
 
@@ -98,8 +100,13 @@ class MainActivity : AppCompatActivity() {
 
         binding.toggleStrictness.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (isChecked) {
-                TimerState.strictness = if (checkedId == R.id.btnGentle)
-                    TimerState.Strictness.GENTLE else TimerState.Strictness.NUCLEAR
+                if (checkedId == R.id.btnGentle) {
+                    TimerState.strictness = TimerState.Strictness.GENTLE
+                    binding.tvModeDescription.text = getString(R.string.mode_desc_gentle)
+                } else {
+                    TimerState.strictness = TimerState.Strictness.NUCLEAR
+                    binding.tvModeDescription.text = getString(R.string.mode_desc_nuclear)
+                }
                 TimerState.save(this)
             }
         }
