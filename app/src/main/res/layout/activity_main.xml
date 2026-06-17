@@ -6,19 +6,7 @@
     android:layout_height="match_parent"
     android:background="@color/bg_dark">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@android:color/transparent"
-        app:elevation="0dp">
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:title="@string/app_name"
-            app:titleTextColor="@color/text_primary" />
-    </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
@@ -181,11 +169,17 @@
                             android:layout_height="wrap_content"
                             android:text="@string/free_time_min"
                             android:textColor="@color/text_primary" />
-                        <LinearLayout
+                        <com.google.android.material.card.MaterialCardView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
+                            app:cardCornerRadius="24dp"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="@color/bg_surface_intense">
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
                             <Button
                                 android:id="@+id/btnFreeMinus"
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
@@ -219,7 +213,8 @@
                                 android:insetTop="0dp"
                                 android:insetBottom="0dp"
                                 android:contentDescription="@string/cd_increase_free"/>
-                        </LinearLayout>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
                     </LinearLayout>
 
                     <LinearLayout
@@ -233,11 +228,17 @@
                             android:layout_height="wrap_content"
                             android:text="@string/lock_time_min"
                             android:textColor="@color/text_primary" />
-                        <LinearLayout
+                        <com.google.android.material.card.MaterialCardView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
+                            app:cardCornerRadius="24dp"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="@color/bg_surface_intense">
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
                             <Button
                                 android:id="@+id/btnLockMinus"
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
@@ -271,7 +272,8 @@
                                 android:insetTop="0dp"
                                 android:insetBottom="0dp"
                                 android:contentDescription="@string/cd_increase_lock"/>
-                        </LinearLayout>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
                     </LinearLayout>
 
                     <LinearLayout
@@ -286,11 +288,17 @@
                             android:layout_height="wrap_content"
                             android:text="@string/allow_time_min"
                             android:textColor="@color/text_primary" />
-                        <LinearLayout
+                        <com.google.android.material.card.MaterialCardView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:gravity="center_vertical">
+                            app:cardCornerRadius="24dp"
+                            app:cardElevation="0dp"
+                            app:cardBackgroundColor="@color/bg_surface_intense">
+                            <LinearLayout
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
                             <Button
                                 android:id="@+id/btnAllowMinus"
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
@@ -324,7 +332,8 @@
                                 android:insetTop="0dp"
                                 android:insetBottom="0dp"
                                 android:contentDescription="@string/cd_increase_break"/>
-                        </LinearLayout>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButtonToggleGroup
@@ -342,7 +351,8 @@
                             android:layout_height="wrap_content"
                             android:text="@string/gentle"
                             android:textColor="@color/text_primary"
-                            app:strokeColor="@color/bg_surface"/>
+                            app:cornerRadius="24dp"
+                            app:strokeColor="@color/bg_surface_intense"/>
                         <Button
                             android:id="@+id/btnNuclear"
                             style="?attr/materialButtonOutlinedStyle"
@@ -351,7 +361,8 @@
                             android:layout_height="wrap_content"
                             android:text="@string/nuclear"
                             android:textColor="@color/text_primary"
-                            app:strokeColor="@color/bg_surface"/>
+                            app:cornerRadius="24dp"
+                            app:strokeColor="@color/bg_surface_intense"/>
                     </com.google.android.material.button.MaterialButtonToggleGroup>
 
                     <TextView
