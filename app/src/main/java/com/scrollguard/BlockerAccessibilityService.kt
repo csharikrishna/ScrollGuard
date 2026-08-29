@@ -3,10 +3,14 @@ package com.scrollguard
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.scrollguard.data.ScrollGuardDatabase
 import kotlinx.coroutines.CoroutineScope
@@ -106,6 +110,7 @@ class BlockerAccessibilityService : AccessibilityService() {
         parentalTickHandler.removeCallbacks(parentalTickRunnable)
         // Flush any pending parental time deltas to Room before dying.
         flushPendingDeltasToRoom()
+        hidePipBlockOverlay()
         serviceJob.cancel()
         super.onDestroy()
     }
@@ -133,18 +138,28 @@ class BlockerAccessibilityService : AccessibilityService() {
         // Update which package is the active foreground for parental tracking.
         updateActiveParentalPackage(activePkg)
 
+        // Whether a blocked package was found ONLY via the all-windows fallback scan this pass
+        // (PiP, or the non-active pane of split-screen) rather than as the true active window.
+        // Verified on-device: BlockActivity's launch DOES gain focus in this case, but Android's
+        // platform PiP windowing keeps the offending app's PiP surface rendered on top of the
+        // newly-launched BlockActivity regardless — the block screen exists underneath but the
+        // restricted content stays visible and (per PiP's own design) at least partially
+        // interactive. requiresOverlayBackstop tracks whether that gap applies this pass.
+        var requiresOverlayBackstop = false
+
         // Engine 1: Focus Timer blocking
         if (TimerState.phase == TimerState.Phase.LOCKED) {
             if (activePkg != null && TimerState.isAppBlocked(activePkg)) {
                 triggerBlock(activePkg, BLOCK_MODE_FOCUS_TIMER)
-                return
-            }
-            // FIX #2: Always scan ALL windows (not just when activePkg==null).
-            for (window in windows) {
-                val windowPkg = window.root?.packageName?.toString()
-                if (windowPkg != null && TimerState.isAppBlocked(windowPkg)) {
-                    triggerBlock(windowPkg, BLOCK_MODE_FOCUS_TIMER)
-                    return
+            } else {
+                // FIX #2: Always scan ALL windows (not just when activePkg==null).
+                for (window in windows) {
+                    val windowPkg = window.root?.packageName?.toString()
+                    if (windowPkg != null && TimerState.isAppBlocked(windowPkg)) {
+                        triggerBlock(windowPkg, BLOCK_MODE_FOCUS_TIMER)
+                        requiresOverlayBackstop = true
+                        break
+                    }
                 }
             }
         }
@@ -152,15 +167,61 @@ class BlockerAccessibilityService : AccessibilityService() {
         // Engine 2: Parental quota blocking
         if (activePkg != null && ParentalControlState.isAppQuotaExhausted(activePkg)) {
             triggerBlock(activePkg, BLOCK_MODE_PARENTAL_LIMIT)
-            return
-        }
-        // Also check split-screen windows for parental blocking.
-        for (window in windows) {
-            val windowPkg = window.root?.packageName?.toString()
-            if (windowPkg != null && ParentalControlState.isAppQuotaExhausted(windowPkg)) {
-                triggerBlock(windowPkg, BLOCK_MODE_PARENTAL_LIMIT)
-                return
+        } else {
+            // Also check split-screen/PiP windows for parental blocking.
+            for (window in windows) {
+                val windowPkg = window.root?.packageName?.toString()
+                if (windowPkg != null && ParentalControlState.isAppQuotaExhausted(windowPkg)) {
+                    triggerBlock(windowPkg, BLOCK_MODE_PARENTAL_LIMIT)
+                    requiresOverlayBackstop = true
+                    break
+                }
             }
+        }
+
+        if (requiresOverlayBackstop) showPipBlockOverlay() else hidePipBlockOverlay()
+    }
+
+    // ── PiP/split-screen overlay backstop ───────────────────────────────
+
+    /** The overlay view currently shown, or null if none is up. */
+    private var pipOverlayView: View? = null
+
+    /**
+     * Shows a full-screen, opaque TYPE_ACCESSIBILITY_OVERLAY window — a window type reserved for
+     * bound AccessibilityServices specifically so they can draw over other apps' content,
+     * including PiP windows, without needing the SYSTEM_ALERT_WINDOW permission at all. This is
+     * the backstop for the PiP/multi-window bypass: BlockActivity's own launch does not reliably
+     * gain top z-order over a PiP window (that window is designed by the platform to float above
+     * regular app windows), so this overlay provides guaranteed visual AND touch coverage
+     * (it is focusable/touchable, not click-through) for as long as the bypass condition holds.
+     */
+    private fun showPipBlockOverlay() {
+        if (pipOverlayView != null) return
+        try {
+            val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+            val overlay = View(this).apply { setBackgroundColor(Color.BLACK) }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                0, // focusable and touchable — must consume input so PiP's own controls can't be reached
+                PixelFormat.OPAQUE
+            )
+            wm.addView(overlay, params)
+            pipOverlayView = overlay
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show PiP/multi-window block overlay", e)
+        }
+    }
+
+    private fun hidePipBlockOverlay() {
+        val view = pipOverlayView ?: return
+        pipOverlayView = null
+        try {
+            (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to remove PiP/multi-window block overlay", e)
         }
     }
 
