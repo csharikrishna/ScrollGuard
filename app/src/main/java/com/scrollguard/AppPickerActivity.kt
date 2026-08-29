@@ -36,6 +36,13 @@ class AppPickerActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.toolbar.setNavigationOnClickListener { finish() }
         binding.rvApps.layoutManager = LinearLayoutManager(this)
+        // The default ItemAnimator can leave a SwitchMaterial's thumb-position animation
+        // mid-flight across a notifyDataSetChanged() (e.g. every search-filter keystroke),
+        // rendering it checked/unchecked opposite to the just-bound, correct isChecked value —
+        // the underlying monitored-state data is unaffected, but the switch visually lies to
+        // the user about it. Disabling change animations for this list removes the animator
+        // path that was carrying the stale state across rebinds.
+        binding.rvApps.itemAnimator = null
 
         setupSearch()
     }
