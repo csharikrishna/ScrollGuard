@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Full redeclaration (not a merge) — style resources with the same name across a
+         qualifier folder replace the base version wholesale on matching API levels, they
+         don't combine with it. windowLightNavigationBar requires API 27+; minSdk is 26,
+         so the base values/themes.xml intentionally omits it (lint otherwise errors: NewApi). -->
+    <style name="Theme.ScrollGuard" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryVariant">@color/primary_variant</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/secondary</item>
+        <item name="colorSecondaryVariant">@color/secondary</item>
+        <item name="colorOnSecondary">@color/primary</item>
+
+        <item name="android:windowBackground">@color/bg_dark</item>
+        <item name="android:statusBarColor">@color/bg_dark</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/bg_dark</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+</resources>

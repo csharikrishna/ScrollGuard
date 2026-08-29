@@ -1,18 +1,24 @@
 package com.scrollguard
 
 import android.Manifest
-import android.accessibilityservice.AccessibilityServiceInfo
+import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
-import android.content.*
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.text.InputType
+import android.util.Log
 import android.view.View
-import android.view.accessibility.AccessibilityManager
+import android.widget.CompoundButton
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -20,14 +26,25 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.scrollguard.databinding.ActivityMainBinding
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val NOTIF_PERMISSION_REQUEST_CODE = 101
+    }
+
     private lateinit var binding: ActivityMainBinding
 
-    private val tickReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) { updateUI() }
+    // Extracted so it can be detached/reattached when we programmatically sync the switch to
+    // the real Device Admin state (see syncStrictModeSwitch) without re-triggering itself.
+    private val strictModeListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
+        onStrictModeToggled(isChecked)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,17 +53,30 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupImmersiveMode()
-        setSupportActionBar(binding.toolbar)
 
         loadSavedConfig()
         setupListeners()
         checkNotificationPermission()
+
+        // Replaces the old "com.scrollguard.TICK" broadcast receiver with a direct collection
+        // of TimerState's in-process StateFlow. repeatOnLifecycle handles start/stop for us,
+        // so there's no manual register/unregister to forget.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                TimerState.tickSignal.collect { updateUI() }
+            }
+        }
     }
 
     private fun setupImmersiveMode() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
     }
 
     private fun loadSavedConfig() {
@@ -63,10 +93,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun adjustTimer(tv: android.widget.TextView, delta: Int) {
+    private fun adjustTimer(tv: TextView, delta: Int) {
         val current = tv.text.toString().toIntOrNull() ?: 0
-        val next = (current + delta).coerceIn(1, 1440)
+        val next = (current + delta).coerceIn(
+            TimerState.MIN_DURATION_MIN.toInt(), TimerState.MAX_DURATION_MIN.toInt()
+        )
         tv.text = next.toString()
+    }
+
+    /** Direct numeric entry, in addition to the +/- steppers — stepping from 60 to 480
+     *  minutes in 5-minute increments takes 84 taps; this makes large adjustments practical. */
+    private fun showDirectEntryDialog(tv: TextView) {
+        val editText = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(tv.text)
+            setSelection(text.length)
+        }
+        val pad = (20 * resources.displayMetrics.density).toInt()
+        val container = FrameLayout(this).apply {
+            setPadding(pad, pad, pad, 0)
+            addView(editText)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.enter_minutes_title))
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val value = editText.text.toString().toLongOrNull()
+                if (value != null) {
+                    tv.text = TimerState.clampDuration(value).toString()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun setupListeners() {
@@ -78,6 +136,8 @@ class MainActivity : AppCompatActivity() {
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             adjustTimer(binding.tvFreeMin, 5)
         }
+        binding.tvFreeMin.setOnClickListener { showDirectEntryDialog(binding.tvFreeMin) }
+
         binding.btnLockMinus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             adjustTimer(binding.tvLockMin, -5)
@@ -86,6 +146,8 @@ class MainActivity : AppCompatActivity() {
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             adjustTimer(binding.tvLockMin, 5)
         }
+        binding.tvLockMin.setOnClickListener { showDirectEntryDialog(binding.tvLockMin) }
+
         binding.btnAllowMinus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             adjustTimer(binding.tvAllowMin, -1)
@@ -94,6 +156,8 @@ class MainActivity : AppCompatActivity() {
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             adjustTimer(binding.tvAllowMin, 1)
         }
+        binding.tvAllowMin.setOnClickListener { showDirectEntryDialog(binding.tvAllowMin) }
+
         binding.btnOverlay.setOnClickListener {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 "package:$packageName".toUri()))
@@ -101,23 +165,22 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnSetup.setOnClickListener { showAccessibilityHelpDialog() }
 
+        // BatteryLife lint warning is intentional here: ScrollGuard's entire purpose is a
+        // long-running background enforcement service, which is exactly the documented,
+        // Play-Console-declarable use case for this exemption (see Play Console's
+        // "Background location/battery" declaration flow for device-management-style apps).
         binding.btnBattery.setOnClickListener {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = "package:$packageName".toUri()
-            }
-            startActivity(intent)
+            requestIgnoreBatteryOptimizations()
         }
 
         binding.btnApps.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            startActivity(Intent(this, AppPickerActivity::class.java))
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            TransitionUtil.startWithFade(this, Intent(this, AppPickerActivity::class.java))
         }
 
         binding.btnStats.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            startActivity(Intent(this, UsageStatsActivity::class.java))
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            TransitionUtil.startWithFade(this, Intent(this, UsageStatsActivity::class.java))
         }
 
         binding.toggleStrictness.addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -133,18 +196,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.switchStrict.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked && !isDeviceAdminActive()) {
-                val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-                intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN,
-                    ComponentName(this, AdminReceiver::class.java))
-                intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    getString(R.string.admin_description))
-                startActivity(intent)
-            }
-            TimerState.strictMode = isChecked
-            TimerState.save(this)
-        }
+        binding.switchStrict.setOnCheckedChangeListener(strictModeListener)
 
         binding.btnStart.setOnClickListener {
             if (TimerState.monitoredApps.isEmpty()) {
@@ -173,21 +225,74 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnReset.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            startActivity(Intent(this, PinActivity::class.java))
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            TransitionUtil.startWithFade(this, Intent(this, PinActivity::class.java))
         }
+    }
+
+    @SuppressLint("BatteryLife")
+    private fun requestIgnoreBatteryOptimizations() {
+        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+            data = "package:$packageName".toUri()
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * Strict Mode / Device Admin (FIX: previously the app could show the switch as ON while
+     * the user had cancelled the system Device Admin dialog, and turning it OFF never actually
+     * revoked admin — so the switch silently snapped back ON the next time the screen resumed.
+     */
+    private fun onStrictModeToggled(isChecked: Boolean) {
+        if (isChecked) {
+            if (isDeviceAdminActive()) {
+                TimerState.strictMode = true
+                TimerState.save(this)
+            } else {
+                // Don't persist strictMode=true yet — wait for the user to actually grant
+                // admin in the system dialog. onResume() reconciles the real outcome.
+                val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this@MainActivity, AdminReceiver::class.java))
+                    putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, getString(R.string.admin_description))
+                }
+                startActivity(intent)
+            }
+        } else {
+            if (isDeviceAdminActive()) {
+                try {
+                    val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+                    dpm.removeActiveAdmin(ComponentName(this, AdminReceiver::class.java))
+                } catch (e: SecurityException) {
+                    Log.w(TAG, "Unable to remove device admin", e)
+                }
+            }
+            val stillActive = isDeviceAdminActive()
+            TimerState.strictMode = stillActive
+            TimerState.save(this)
+            if (stillActive) {
+                // The device restricted self-removal — don't lie to the user; reflect reality.
+                Toast.makeText(this, getString(R.string.toast_admin_removal_failed), Toast.LENGTH_LONG).show()
+                syncStrictModeSwitch(true)
+            }
+        }
+    }
+
+    /** Sets the switch's checked state without re-triggering strictModeListener. */
+    private fun syncStrictModeSwitch(checked: Boolean) {
+        binding.switchStrict.setOnCheckedChangeListener(null)
+        binding.switchStrict.isChecked = checked
+        binding.switchStrict.setOnCheckedChangeListener(strictModeListener)
     }
 
     private fun showAccessibilityHelpDialog() {
         val message = StringBuilder()
         message.append("1. Find 'ScrollGuard Blocker' in the list.\n")
         message.append("2. Turn the switch ON.\n\n")
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             message.append("⚠️ If 'Restricted Setting' appears:\n")
             message.append("Go to App Info > Three Dots (top right) > 'Allow restricted settings', then try again.\n\n")
         }
-        
+
         message.append("Note: If it's already ON but showing 'Not Working', try turning it OFF and then ON again.")
 
         AlertDialog.Builder(this)
@@ -204,9 +309,10 @@ class MainActivity : AppCompatActivity() {
         when {
             !Settings.canDrawOverlays(this) ->
                 Toast.makeText(this, getString(R.string.toast_overlay_required), Toast.LENGTH_LONG).show()
-            !isAccessibilityEnabled() ->
+            !AccessibilityUtils.isBlockerServiceEnabled(this) ->
                 Toast.makeText(this, getString(R.string.toast_accessibility_required), Toast.LENGTH_LONG).show()
             else -> {
+                TimerState.accessibilityHealthy = true
                 val i = Intent(this, TimerService::class.java).apply { action = "START" }
                 startForegroundService(i)
                 updateUI()
@@ -217,8 +323,6 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         TimerState.load(applicationContext)
-        val filter = IntentFilter("com.scrollguard.TICK")
-        ContextCompat.registerReceiver(this, tickReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
 
         // FIX C5: Send explicit "RESUME" action so TimerService.onStartCommand
         // knows this is a reconnect, not a fresh start. Without an action, the
@@ -229,27 +333,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         // FIX H3: Always sync switch state with actual device admin status.
-        // Previously, if the user toggled the switch ON but cancelled the
-        // device admin dialog, strictMode stayed true with no protection.
         val adminActive = isDeviceAdminActive()
-        binding.switchStrict.isChecked = adminActive
+        syncStrictModeSwitch(adminActive)
         if (TimerState.strictMode != adminActive) {
             TimerState.strictMode = adminActive
             TimerState.save(this)
         }
 
-        updateUI()
-    }
+        if (AccessibilityUtils.isBlockerServiceEnabled(this)) {
+            TimerState.accessibilityHealthy = true
+        }
 
-    override fun onPause() {
-        super.onPause()
-        try { unregisterReceiver(tickReceiver) } catch (_: Exception) {}
+        updateUI()
     }
 
     private fun updateUI() {
         TimerState.load(applicationContext)
 
-        val accessOk = isAccessibilityEnabled()
+        val accessOk = AccessibilityUtils.isBlockerServiceEnabled(this)
         val overlayOk = Settings.canDrawOverlays(this)
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         val batteryOk = pm.isIgnoringBatteryOptimizations(packageName)
@@ -281,14 +382,18 @@ class MainActivity : AppCompatActivity() {
                 binding.btnLockPlus.isEnabled   = true
                 binding.btnAllowMinus.isEnabled = true
                 binding.btnAllowPlus.isEnabled  = true
+                binding.tvFreeMin.isEnabled  = true
+                binding.tvLockMin.isEnabled  = true
+                binding.tvAllowMin.isEnabled = true
                 binding.btnGentle.isEnabled  = true
                 binding.btnNuclear.isEnabled = true
             }
             else -> {
-                binding.tvSub.text = when (phase) {
-                    TimerState.Phase.FREE    -> getString(R.string.enjoy_freely)
-                    TimerState.Phase.LOCKED  -> getString(R.string.locked_put_phone_down)
-                    TimerState.Phase.ALLOWED -> getString(R.string.quick_window)
+                binding.tvSub.text = when {
+                    !accessOk -> getString(R.string.accessibility_disabled_warning)
+                    phase == TimerState.Phase.FREE    -> getString(R.string.enjoy_freely)
+                    phase == TimerState.Phase.LOCKED  -> getString(R.string.locked_put_phone_down)
+                    phase == TimerState.Phase.ALLOWED -> getString(R.string.quick_window)
                     else -> ""
                 }
                 binding.btnStart.visibility  = View.GONE
@@ -299,24 +404,13 @@ class MainActivity : AppCompatActivity() {
                 binding.btnLockPlus.isEnabled   = false
                 binding.btnAllowMinus.isEnabled = false
                 binding.btnAllowPlus.isEnabled  = false
+                binding.tvFreeMin.isEnabled  = false
+                binding.tvLockMin.isEnabled  = false
+                binding.tvAllowMin.isEnabled = false
                 binding.btnGentle.isEnabled  = false
                 binding.btnNuclear.isEnabled = false
             }
         }
-    }
-
-    private fun isAccessibilityEnabled(): Boolean {
-        val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
-        val expectedName = BlockerAccessibilityService::class.java.name
-        
-        for (service in enabledServices) {
-            val info = service.resolveInfo.serviceInfo
-            if (info.packageName == packageName && info.name == expectedName) {
-                return true
-            }
-        }
-        return false
     }
 
     private fun isDeviceAdminActive(): Boolean {
@@ -329,8 +423,22 @@ class MainActivity : AppCompatActivity() {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(
-                    this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101
+                    this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIF_PERMISSION_REQUEST_CODE
                 )
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NOTIF_PERMISSION_REQUEST_CODE) {
+            val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                Toast.makeText(this, getString(R.string.toast_notifications_denied), Toast.LENGTH_LONG).show()
             }
         }
     }

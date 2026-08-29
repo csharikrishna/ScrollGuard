@@ -10,12 +10,12 @@
         <item name="colorSecondaryVariant">@color/secondary</item>
         <item name="colorOnSecondary">@color/primary</item>
 
-        <!-- Status bar and Nav bar color. -->
+        <!-- Status bar and Nav bar color. windowLightNavigationBar needs API 27+; it lives in
+             values-v27/themes.xml since minSdk is 26 and lint correctly errors on it here. -->
         <item name="android:windowBackground">@color/bg_dark</item>
         <item name="android:statusBarColor">@color/bg_dark</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@color/bg_dark</item>
-        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <!-- Glass Card Style -->

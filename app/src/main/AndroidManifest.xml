@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -7,10 +8,15 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Special/protected permission: cannot be granted via the manifest. The user grants it
+         explicitly through Settings.ACTION_USAGE_ACCESS_SETTINGS (see AppPickerActivity). This
+         is the documented pattern for apps that need optional usage-access data. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 
-    <!-- L8: INTERNET permission removed — Lottie animations are now bundled locally -->
+    <!-- Lottie animations are bundled locally; no INTERNET permission needed. -->
 
+    <!-- Package-visibility scope for the app picker: only launchable (user-facing) apps need to
+         be selectable as block targets, so this is deliberately narrower than QUERY_ALL_PACKAGES. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -18,8 +24,15 @@
         </intent>
     </queries>
 
+    <!-- allowBackup=false disables cloud backup AND device-to-device transfer completely on
+         every API level, which is the actual intent here (session/lock state and monitored
+         apps are device-specific and would be confusing to silently restore onto a new device
+         or after a reinstall). android:dataExtractionRules is a finer-grained alternative for
+         apps that want backup with per-file control — not needed when the goal is simply "no
+         backup at all", so the lint suggestion doesn't apply here. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        tools:ignore="DataExtractionRules"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:label="@string/app_name"
@@ -37,11 +50,13 @@
 
         <activity
             android:name=".AppPickerActivity"
+            android:exported="false"
             android:label="Select Apps"
             android:theme="@style/Theme.ScrollGuard" />
 
         <activity
             android:name=".UsageStatsActivity"
+            android:exported="false"
             android:label="Analytics"
             android:theme="@style/Theme.ScrollGuard" />
 
@@ -49,8 +64,7 @@
             android:name=".BlockActivity"
             android:exported="false"
             android:launchMode="singleTask"
-            android:showOnLockScreen="true"
-            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
             android:theme="@style/Theme.ScrollGuard.Block" />
 
         <activity

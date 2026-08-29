@@ -13,7 +13,6 @@
 
     <!-- Status Colors -->
     <color name="error">#D93025</color>
-    <color name="success">#1E8E3E</color>
     <color name="warning">#F9AB00</color>
 
     <!-- Text -->
@@ -22,6 +21,4 @@
     <color name="text_muted">#80868B</color>     <!-- Light Gray -->
 
     <color name="white">#FFFFFF</color>
-    <color name="black">#000000</color>
-    <color name="transparent">#00000000</color>
 </resources>

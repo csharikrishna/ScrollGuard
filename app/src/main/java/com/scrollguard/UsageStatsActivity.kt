@@ -10,12 +10,14 @@ import com.github.mikephil.charting.data.BarData
 import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.google.android.material.snackbar.Snackbar
 import com.scrollguard.data.DataRepository
 import com.scrollguard.databinding.ActivityUsageStatsBinding
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 class UsageStatsActivity : AppCompatActivity() {
 
@@ -34,10 +36,12 @@ class UsageStatsActivity : AppCompatActivity() {
         repository = DataRepository.getInstance(this)
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        binding.toolbar.setNavigationOnClickListener {
-            finish()
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-        }
+        binding.toolbar.setNavigationOnClickListener { TransitionUtil.finishWithFade(this) }
+
+        // Set before the async load below so there's never a frame showing raw "0h 0m"/"0"
+        // hardcoded text — the real data comes from a Room Flow that hasn't emitted yet.
+        binding.tvTotalSaved.text = getString(R.string.time_saved_format, 0, 0)
+        binding.tvTotalCycles.text = "0"
 
         setupChart()
         loadStats()
@@ -49,7 +53,7 @@ class UsageStatsActivity : AppCompatActivity() {
             setDrawGridBackground(false)
             setDrawBarShadow(false)
             legend.isEnabled = false
-            setNoDataText("Start focusing to see your progress!")
+            setNoDataText(getString(R.string.no_data_yet))
             setNoDataTextColor(Color.parseColor("#B3FFFFFF"))
 
             xAxis.apply {
@@ -83,7 +87,7 @@ class UsageStatsActivity : AppCompatActivity() {
                 val totalCycles = records.sumOf { it.cyclesCompleted }
                 val h = totalSecs / 3600
                 val m = (totalSecs % 3600) / 60
-                binding.tvTotalSaved.text = "${h}h ${m}m"
+                binding.tvTotalSaved.text = getString(R.string.time_saved_format, h, m)
                 binding.tvTotalCycles.text = totalCycles.toString()
 
                 if (records.isEmpty()) {
@@ -99,7 +103,7 @@ class UsageStatsActivity : AppCompatActivity() {
                     BarEntry(index.toFloat(), record.secondsSaved / 60f)
                 }
 
-                val dataSet = BarDataSet(entries, "Minutes Saved").apply {
+                val dataSet = BarDataSet(entries, getString(R.string.chart_minutes_saved_label)).apply {
                     color = Color.parseColor("#FF4081")
                     setDrawValues(true)
                     valueTextColor = Color.WHITE
@@ -109,24 +113,27 @@ class UsageStatsActivity : AppCompatActivity() {
 
                 binding.chart.data = BarData(dataSet)
                 binding.chart.xAxis.valueFormatter = object : ValueFormatter() {
-                    val sdf = SimpleDateFormat("MM/dd", Locale.getDefault())
+                    // A fresh SimpleDateFormat per call (rather than a cached field) avoids both
+                    // the "stale locale if the user changes it mid-session" lint warning and
+                    // SimpleDateFormat's well-known lack of thread safety.
                     override fun getFormattedValue(value: Float): String {
                         val index = value.toInt()
-                        return if (index >= 0 && index < records.size)
-                            sdf.format(Date(records[index].date)) else ""
+                        if (index < 0 || index >= records.size) return ""
+                        val sdf = SimpleDateFormat("MM/dd", Locale.getDefault())
+                        return sdf.format(Date(records[index].date))
                     }
                 }
 
                 binding.chart.animateY(1000)
                 binding.chart.invalidate()
             } catch (e: Exception) {
+                // Don't fail silently: a chart that's merely empty looks identical to one that
+                // failed to load unless we say otherwise.
                 Log.e(TAG, "Failed to load usage stats", e)
+                Snackbar.make(binding.root, getString(R.string.error_loading_stats), Snackbar.LENGTH_LONG)
+                    .setAction(getString(R.string.action_retry)) { loadStats() }
+                    .show()
             }
         }
-    }
-
-    override fun finish() {
-        super.finish()
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
 }

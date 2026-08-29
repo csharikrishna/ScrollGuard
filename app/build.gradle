@@ -1,8 +1,35 @@
+import java.util.Properties
+
 plugins {
     id 'com.android.application'
     id 'kotlin-android'
     id 'kotlin-kapt'
 }
+
+// Release signing: never committed. Resolved from (in order of precedence) environment
+// variables — the path CI should use via secrets — then a local, git-ignored
+// keystore.properties file for developer machines. Absent both, release builds are simply
+// left unsigned (as they always were before), so local development never requires production
+// credentials. See keystore.properties.sample and README's "Release Signing" section.
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+def resolveSigningValue = { String envName, String propName ->
+    def fromEnv = System.getenv(envName)
+    if (fromEnv != null && !fromEnv.isEmpty()) return fromEnv
+    return keystoreProperties.getProperty(propName)
+}
+
+def releaseStoreFilePath = resolveSigningValue("SCROLLGUARD_RELEASE_STORE_FILE", "storeFile")
+def releaseStorePassword = resolveSigningValue("SCROLLGUARD_RELEASE_STORE_PASSWORD", "storePassword")
+def releaseKeyAlias = resolveSigningValue("SCROLLGUARD_RELEASE_KEY_ALIAS", "keyAlias")
+def releaseKeyPassword = resolveSigningValue("SCROLLGUARD_RELEASE_KEY_PASSWORD", "keyPassword")
+
+def hasReleaseSigningConfig = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword &&
+    rootProject.file(releaseStoreFilePath).exists()
 
 android {
     compileSdk 34
@@ -18,10 +45,33 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            release {
+                storeFile rootProject.file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
-        release {
+        debug {
+            // Explicit for clarity: debug always uses the auto-generated debug keystore and
+            // is never confused with the release signing config above.
             minifyEnabled false
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigningConfig) {
+                signingConfig signingConfigs.release
+            }
+            // If no signing config is available (e.g. a fresh clone with no keystore secrets),
+            // this intentionally still builds — producing an unsigned APK, exactly as before —
+            // rather than failing local/dev builds that don't need a real release artifact.
         }
     }
 
@@ -37,21 +87,41 @@ android {
     buildFeatures {
         viewBinding true
     }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+}
+
+kapt {
+    arguments {
+        // Schema export was previously OFF, which is why the 1->2 migration has to fall back
+        // to a destructive rebuild (see ScrollGuardDatabase's doc comment) — there was no
+        // committed schema to migrate from safely. Exporting from here on means every future
+        // schema change can and must ship a real, testable Migration.
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }
 
 dependencies {
     implementation "com.airbnb.android:lottie:6.4.0"
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.22"
-    implementation "androidx.core:core-ktx:1.12.0"
-    implementation "androidx.appcompat:appcompat:1.6.1"
-    implementation "com.google.android.material:material:1.11.0"
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "com.google.android.material:material:1.12.0"
     implementation "androidx.constraintlayout:constraintlayout:2.1.4"
-    
+
     // Lifecycle
-    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.7.0"
-    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0"
-    implementation "androidx.lifecycle:lifecycle-service:2.7.0"
+    implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.8.7"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7"
+    implementation "androidx.lifecycle:lifecycle-service:2.8.7"
+    // Needed for repeatOnLifecycle(), used to safely collect TimerState's StateFlow instead
+    // of the old manually-registered "com.scrollguard.TICK" broadcast receivers.
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
 
     // Room Database
     implementation "androidx.room:room-runtime:2.6.1"
@@ -60,4 +130,11 @@ dependencies {
 
     // Charts (for Analytics)
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    // Unit tests. Robolectric runs TimerState's real production code (SharedPreferences,
+    // SystemClock, Log) against a simulated Android environment rather than a mocked one,
+    // since TimerState isn't written against an injectable clock/context abstraction.
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "org.robolectric:robolectric:4.13"
+    testImplementation "androidx.test:core:1.6.1"
 }

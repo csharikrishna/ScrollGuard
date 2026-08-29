@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/bg_dark"
     android:gravity="center"
     android:padding="32dp">
 
@@ -32,19 +32,31 @@
         android:id="@+id/tvTask"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Solve to unlock: 24 + 13"
         android:textColor="@color/primary"
         android:textSize="16sp"
-        android:layout_marginBottom="24dp"/>
+        android:layout_marginBottom="24dp"
+        tools:text="Solve to unlock: 247 + 318"/>
 
     <TextView
         android:id="@+id/tvDots"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="○  ○  ○  ○"
         android:textColor="@color/primary"
         android:textSize="32sp"
-        android:layout_marginBottom="40dp" />
+        android:layout_marginBottom="16dp"
+        tools:text="○  ○  ○" />
+
+    <TextView
+        android:id="@+id/tvCooldown"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/error"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone"
+        tools:text="Too many wrong answers — try again in 3s"
+        tools:visibility="visible" />
 
     <GridLayout
         android:layout_width="wrap_content"
@@ -52,18 +64,20 @@
         android:columnCount="3"
         android:rowCount="4">
 
-        <Button style="@style/PinButton" android:id="@+id/btn1" android:text="1" />
-        <Button style="@style/PinButton" android:id="@+id/btn2" android:text="2" />
-        <Button style="@style/PinButton" android:id="@+id/btn3" android:text="3" />
-        <Button style="@style/PinButton" android:id="@+id/btn4" android:text="4" />
-        <Button style="@style/PinButton" android:id="@+id/btn5" android:text="5" />
-        <Button style="@style/PinButton" android:id="@+id/btn6" android:text="6" />
-        <Button style="@style/PinButton" android:id="@+id/btn7" android:text="7" />
-        <Button style="@style/PinButton" android:id="@+id/btn8" android:text="8" />
-        <Button style="@style/PinButton" android:id="@+id/btn9" android:text="9" />
-        <Button style="@style/PinButton" android:id="@+id/btnCancel" android:text="X" />
-        <Button style="@style/PinButton" android:id="@+id/btn0" android:text="0" />
-        <Button style="@style/PinButton" android:id="@+id/btnDel" android:text="⌫" />
+        <Button style="@style/PinButton" android:id="@+id/btn1" android:text="@string/pin_digit_1" />
+        <Button style="@style/PinButton" android:id="@+id/btn2" android:text="@string/pin_digit_2" />
+        <Button style="@style/PinButton" android:id="@+id/btn3" android:text="@string/pin_digit_3" />
+        <Button style="@style/PinButton" android:id="@+id/btn4" android:text="@string/pin_digit_4" />
+        <Button style="@style/PinButton" android:id="@+id/btn5" android:text="@string/pin_digit_5" />
+        <Button style="@style/PinButton" android:id="@+id/btn6" android:text="@string/pin_digit_6" />
+        <Button style="@style/PinButton" android:id="@+id/btn7" android:text="@string/pin_digit_7" />
+        <Button style="@style/PinButton" android:id="@+id/btn8" android:text="@string/pin_digit_8" />
+        <Button style="@style/PinButton" android:id="@+id/btn9" android:text="@string/pin_digit_9" />
+        <Button style="@style/PinButton" android:id="@+id/btnCancel" android:text="@string/pin_cancel_symbol"
+            android:contentDescription="@string/cd_pin_cancel" />
+        <Button style="@style/PinButton" android:id="@+id/btn0" android:text="@string/pin_digit_0" />
+        <Button style="@style/PinButton" android:id="@+id/btnDel" android:text="@string/pin_delete_symbol"
+            android:contentDescription="@string/cd_pin_delete" />
 
     </GridLayout>
 

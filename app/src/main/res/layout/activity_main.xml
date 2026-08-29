@@ -3,9 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/bg_dark">
-
+    android:layout_height="match_parent">
 
 
     <androidx.core.widget.NestedScrollView
@@ -48,7 +46,6 @@
                         android:id="@+id/tvTimer"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="00:00:00"
                         android:textColor="@color/text_primary"
                         android:textSize="56sp"
                         android:textStyle="bold"
@@ -85,24 +82,16 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:contentDescription="@string/choose_apps">
-                    <LinearLayout
+                    <TextView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:orientation="vertical">
-                        <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@android:drawable/ic_menu_agenda"
-                            app:tint="@color/secondary" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/apps_label"
-                            android:textColor="@color/text_primary"
-                            android:textStyle="bold"
-                            android:layout_marginTop="8dp" />
-                    </LinearLayout>
+                        android:text="@string/apps_label"
+                        android:textColor="@color/text_primary"
+                        android:textStyle="bold"
+                        app:drawableTopCompat="@android:drawable/ic_menu_agenda"
+                        app:drawableTint="@color/primary"
+                        android:drawablePadding="8dp" />
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.card.MaterialCardView
@@ -115,24 +104,16 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:contentDescription="@string/analytics">
-                    <LinearLayout
+                    <TextView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:gravity="center"
-                        android:orientation="vertical">
-                        <ImageView
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:src="@android:drawable/ic_menu_sort_by_size"
-                            app:tint="@color/warning" />
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/analytics"
-                            android:textColor="@color/text_primary"
-                            android:textStyle="bold"
-                            android:layout_marginTop="8dp" />
-                    </LinearLayout>
+                        android:text="@string/analytics"
+                        android:textColor="@color/text_primary"
+                        android:textStyle="bold"
+                        app:drawableTopCompat="@android:drawable/ic_menu_sort_by_size"
+                        app:drawableTint="@color/warning"
+                        android:drawablePadding="8dp" />
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
@@ -185,7 +166,7 @@
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
-                                android:text="-"
+                                android:text="@string/symbol_minus"
                                 android:textSize="20sp"
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
@@ -196,17 +177,21 @@
                                 android:id="@+id/tvFreeMin"
                                 android:layout_width="50dp"
                                 android:layout_height="wrap_content"
-                                android:text="60"
+                                tools:text="60"
                                 android:textColor="@color/text_primary"
                                 android:textSize="18sp"
                                 android:textStyle="bold"
-                                android:gravity="center"/>
+                                android:gravity="center"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:foreground="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="@string/cd_edit_free_minutes"/>
                             <Button
                                 android:id="@+id/btnFreePlus"
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
-                                android:text="+"
+                                android:text="@string/symbol_plus"
                                 android:textSize="20sp"
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
@@ -244,7 +229,7 @@
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
-                                android:text="-"
+                                android:text="@string/symbol_minus"
                                 android:textSize="20sp"
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
@@ -255,17 +240,21 @@
                                 android:id="@+id/tvLockMin"
                                 android:layout_width="50dp"
                                 android:layout_height="wrap_content"
-                                android:text="10"
+                                tools:text="10"
                                 android:textColor="@color/text_primary"
                                 android:textSize="18sp"
                                 android:textStyle="bold"
-                                android:gravity="center"/>
+                                android:gravity="center"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:foreground="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="@string/cd_edit_lock_minutes"/>
                             <Button
                                 android:id="@+id/btnLockPlus"
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
-                                android:text="+"
+                                android:text="@string/symbol_plus"
                                 android:textSize="20sp"
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
@@ -304,7 +293,7 @@
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
-                                android:text="-"
+                                android:text="@string/symbol_minus"
                                 android:textSize="20sp"
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"
@@ -315,17 +304,21 @@
                                 android:id="@+id/tvAllowMin"
                                 android:layout_width="50dp"
                                 android:layout_height="wrap_content"
-                                android:text="2"
+                                tools:text="2"
                                 android:textColor="@color/text_primary"
                                 android:textSize="18sp"
                                 android:textStyle="bold"
-                                android:gravity="center"/>
+                                android:gravity="center"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:foreground="?attr/selectableItemBackgroundBorderless"
+                                android:contentDescription="@string/cd_edit_break_minutes"/>
                             <Button
                                 android:id="@+id/btnAllowPlus"
                                 style="@style/Widget.MaterialComponents.Button.TextButton"
                                 android:layout_width="48dp"
                                 android:layout_height="48dp"
-                                android:text="+"
+                                android:text="@string/symbol_plus"
                                 android:textSize="20sp"
                                 android:textColor="@color/text_primary"
                                 android:minWidth="0dp"

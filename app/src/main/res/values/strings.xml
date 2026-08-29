@@ -9,6 +9,7 @@
     <string name="enjoy_freely">Enjoy freely - Tracking active</string>
     <string name="locked_put_phone_down">Locked - Put your phone down!</string>
     <string name="quick_window">Quick window - Use wisely</string>
+    <string name="accessibility_disabled_warning">Blocking is paused — Accessibility service is off. Tap Setup below.</string>
     <string name="start_focus_session">START FOCUS SESSION</string>
     <string name="end_session_pin">End Session (Verification Required)</string>
     <string name="focus_configuration">FOCUS CONFIGURATION</string>
@@ -17,19 +18,24 @@
     <string name="allow_time_min">Break Window (min)</string>
     <string name="gentle">GENTLE</string>
     <string name="nuclear">NUCLEAR</string>
-    <string name="mode_desc_gentle">Allows you to bypass the block screen after 15 seconds if you urgently need the app.</string>
-    <string name="mode_desc_nuclear">Aggressive mode. The block screen cannot be dismissed or bypassed until the timer runs out.</string>
-    
+    <string name="mode_desc_gentle">Lets you dismiss the block screen after 15 seconds for a short break, then it locks again automatically.</string>
+    <string name="mode_desc_nuclear">Aggressive mode. The block screen cannot be dismissed until the timer runs out. Home/Recents may still exit the app — see README.</string>
+    <string name="enter_minutes_title">Enter minutes</string>
+    <string name="symbol_minus">-</string>
+    <string name="symbol_plus">+</string>
+
     <string name="cd_decrease_free">Decrease free time by 5 minutes</string>
     <string name="cd_increase_free">Increase free time by 5 minutes</string>
+    <string name="cd_edit_free_minutes">Edit free time directly</string>
     <string name="cd_decrease_lock">Decrease lock time by 5 minutes</string>
     <string name="cd_increase_lock">Increase lock time by 5 minutes</string>
+    <string name="cd_edit_lock_minutes">Edit lock time directly</string>
     <string name="cd_decrease_break">Decrease break time by 1 minute</string>
     <string name="cd_increase_break">Increase break time by 1 minute</string>
-    
+    <string name="cd_edit_break_minutes">Edit break time directly</string>
+
     <string name="strict_mode_uninstall">Strict Mode (Uninstall Protection)</string>
     <string name="action_required">Action Required</string>
-    <string name="grant_permissions_blocking">Grant permissions to enable blocking</string>
     <string name="enable_overlay">Enable Overlay</string>
     <string name="enable_accessibility">Enable Accessibility</string>
     <string name="ignore_battery_opt">Ignore Battery Optimization</string>
@@ -38,11 +44,15 @@
     <string name="choose_apps">Choose Apps</string>
     <string name="search_apps">Search apps…</string>
     <string name="apps_label">Apps</string>
+    <string name="no_apps_found">No apps found</string>
+    <string name="grant_usage_access_snackbar">Grant Usage Access to see daily time spent per app</string>
+    <string name="action_grant">GRANT</string>
+    <string name="usage_today_hours_format">Used today: %1$dh %2$dm</string>
+    <string name="usage_today_minutes_format">Used today: %1$dm</string>
 
     <!-- Block Activity -->
     <string name="focus_mode_active">FOCUS MODE ACTIVE</string>
     <string name="short_form_addictive">Short-form content is addictive. \nTake a breath. Reclaim your time.</string>
-    <string name="stay_focused">STAY FOCUSED</string>
     <string name="gentle_dismiss">Tap here to dismiss (Gentle Mode)</string>
     <string name="stay_strong">Stay strong! 💪</string>
 
@@ -52,13 +62,31 @@
     <string name="total_discipline">Total Discipline</string>
     <string name="cycles_defeated">Cycles Defeated</string>
     <string name="no_data_yet">Start focusing to see your progress!</string>
+    <string name="time_saved_format">%1$dh %2$dm</string>
+    <string name="chart_minutes_saved_label">Minutes Saved</string>
+    <string name="error_loading_stats">Couldn\'t load your stats</string>
+    <string name="action_retry">RETRY</string>
 
     <!-- PIN Activity -->
     <string name="admin_access">ADMIN ACCESS</string>
-    <string name="pin_solve_placeholder">Solve to unlock</string>
     <string name="pin_solve_format">Strict Mode: Solve %1$d + %2$d</string>
     <string name="pin_success">Focus Session Ended. ✅</string>
     <string name="pin_failure">Incorrect. Try again. ❌</string>
+    <string name="pin_cooldown_format">Too many wrong answers — try again in %1$ds</string>
+    <string name="cd_pin_cancel">Cancel</string>
+    <string name="cd_pin_delete">Delete last digit</string>
+    <string name="pin_digit_0">0</string>
+    <string name="pin_digit_1">1</string>
+    <string name="pin_digit_2">2</string>
+    <string name="pin_digit_3">3</string>
+    <string name="pin_digit_4">4</string>
+    <string name="pin_digit_5">5</string>
+    <string name="pin_digit_6">6</string>
+    <string name="pin_digit_7">7</string>
+    <string name="pin_digit_8">8</string>
+    <string name="pin_digit_9">9</string>
+    <string name="pin_cancel_symbol">X</string>
+    <string name="pin_delete_symbol">⌫</string>
 
     <!-- Toast Messages -->
     <string name="toast_select_apps">Please select apps to monitor first!</string>
@@ -66,4 +94,11 @@
     <string name="toast_accessibility_required">Enable Accessibility first!</string>
     <string name="toast_protection_enabled">ScrollGuard: Protection Enabled</string>
     <string name="toast_protection_disabled">ScrollGuard: Protection Disabled</string>
+    <string name="toast_admin_removal_failed">This device won\'t allow removing admin access from within the app. Remove it from Settings ▸ Security ▸ Device Admin Apps.</string>
+    <string name="toast_notifications_denied">Without notification permission, you won\'t see the ongoing timer or alerts if blocking stops working.</string>
+
+    <!-- Service notifications -->
+    <string name="notif_health_warning_prefix">⚠️ %1$s</string>
+    <string name="notif_accessibility_lost_title">ScrollGuard can\'t block apps right now</string>
+    <string name="notif_accessibility_lost_text">The Accessibility service was turned off or stopped. Tap to fix it.</string>
 </resources>

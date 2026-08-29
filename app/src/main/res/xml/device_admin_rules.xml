@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- No specific policies requested: uninstall-protection comes from simply being an active
+     Device Admin, not from any of the uses-policies capabilities (force-lock, wipe-data,
+     etc). This app never calls those DevicePolicyManager APIs, so requesting them would be
+     unused privilege beyond what the feature actually needs. -->
 <device-admin>
-    <uses-policies>
-        <force-lock />
-    </uses-policies>
+    <uses-policies />
 </device-admin>

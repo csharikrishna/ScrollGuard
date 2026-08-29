@@ -2,18 +2,30 @@ package com.scrollguard
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.*
+import android.os.CountDownTimer
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.scrollguard.databinding.ActivityPinBinding
 import kotlin.random.Random
 
 class PinActivity : AppCompatActivity() {
 
+    companion object {
+        /** After this many consecutive wrong answers, briefly lock the keypad. Bounded and
+         *  always self-expiring — never a permanent lockout. */
+        private const val MAX_ATTEMPTS_BEFORE_COOLDOWN = 3
+        private const val COOLDOWN_MS = 5_000L
+    }
+
     private lateinit var binding: ActivityPinBinding
     private var enteredPin = ""
     private var correctAnswer = 0
     // FIX #7: Track actual digit count instead of always using 4
     private var answerLength = 3
+    private var consecutiveWrongAnswers = 0
+    private var cooldownTimer: CountDownTimer? = null
+
+    private lateinit var digitButtons: List<android.widget.Button>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,14 +34,14 @@ class PinActivity : AppCompatActivity() {
 
         generateTask()
 
-        val keys = listOf(
+        digitButtons = listOf(
             binding.btn0, binding.btn1, binding.btn2, binding.btn3,
             binding.btn4, binding.btn5, binding.btn6, binding.btn7,
             binding.btn8, binding.btn9
         )
         val nums = listOf("0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 
-        keys.forEachIndexed { i, btn ->
+        digitButtons.forEachIndexed { i, btn ->
             btn.setOnClickListener { v ->
                 v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
                 if (enteredPin.length < answerLength) {
@@ -59,9 +71,13 @@ class PinActivity : AppCompatActivity() {
 
         binding.btnCancel.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            finish()
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            TransitionUtil.finishWithFade(this)
         }
+    }
+
+    override fun onDestroy() {
+        cooldownTimer?.cancel()
+        super.onDestroy()
     }
 
     private fun generateTask() {
@@ -89,14 +105,42 @@ class PinActivity : AppCompatActivity() {
         startService(stopIntent)
         TimerState.reset(applicationContext)
         Toast.makeText(this, getString(R.string.pin_success), Toast.LENGTH_SHORT).show()
-        finish()
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+        TransitionUtil.finishWithFade(this)
     }
 
     private fun onFailure() {
+        consecutiveWrongAnswers++
         Toast.makeText(this, getString(R.string.pin_failure), Toast.LENGTH_SHORT).show()
         enteredPin = ""
         updateDots()
         generateTask()
+
+        if (consecutiveWrongAnswers >= MAX_ATTEMPTS_BEFORE_COOLDOWN) {
+            startCooldown()
+        }
+    }
+
+    /** A short, always-expiring cooldown after repeated wrong answers — enough friction to
+     *  discourage mindless retrying, never long or permanent enough to lock anyone out. */
+    private fun startCooldown() {
+        consecutiveWrongAnswers = 0
+        setKeypadEnabled(false)
+        binding.tvCooldown.visibility = android.view.View.VISIBLE
+        cooldownTimer?.cancel()
+        cooldownTimer = object : CountDownTimer(COOLDOWN_MS, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                val secs = (millisUntilFinished / 1000) + 1
+                binding.tvCooldown.text = getString(R.string.pin_cooldown_format, secs)
+            }
+            override fun onFinish() {
+                binding.tvCooldown.visibility = android.view.View.GONE
+                setKeypadEnabled(true)
+            }
+        }.start()
+    }
+
+    private fun setKeypadEnabled(enabled: Boolean) {
+        digitButtons.forEach { it.isEnabled = enabled }
+        binding.btnDel.isEnabled = enabled
     }
 }
