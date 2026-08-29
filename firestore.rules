@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isParentOfFamily(familyId) {
+      return isAuthenticated() &&
+        request.auth.uid == get(/databases/$(database)/documents/families/$(familyId)).data.parentUid;
+    }
+
+    function isChildOfFamily(familyId) {
+      return isAuthenticated() &&
+        request.auth.uid == get(/databases/$(database)/documents/families/$(familyId)).data.childUid;
+    }
+
+    function isFamilyMember(familyId) {
+      return isParentOfFamily(familyId) || isChildOfFamily(familyId);
+    }
+
+    // ── Ephemeral Pairing Codes ─────────────────────────────────────────
+    match /pairing/{code} {
+      // Child can create a pairing code only for a family it actually owns as childUid
+      // (prevents forging a code that points at someone else's family), and only in the
+      // unclaimed initial shape (parentUid null, consumed false).
+      allow create: if isAuthenticated() &&
+                    request.resource.data.consumed == false &&
+                    request.resource.data.parentUid == null &&
+                    request.resource.data.expiresAt > request.time &&
+                    request.resource.data.familyId is string &&
+                    get(/databases/$(database)/documents/families/$(request.resource.data.familyId)).data.childUid == request.auth.uid;
+
+      // Single-document fetch only — the parent must already know the exact code from the
+      // child's screen/QR. `list`/query access is never granted, so the pairing collection
+      // can never be enumerated by an authenticated stranger to harvest pending codes.
+      allow get: if isAuthenticated();
+
+      // Parent consumes the code inside a transaction. Restricted to exactly the two fields
+      // that transaction touches — nothing else about the pairing doc may change on claim.
+      allow update: if isAuthenticated() &&
+                    resource.data.consumed == false &&
+                    resource.data.expiresAt > request.time &&
+                    request.resource.data.consumed == true &&
+                    request.resource.data.parentUid == request.auth.uid &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consumed', 'parentUid']);
+
+      allow delete: if isAuthenticated() &&
+                    (resource.data.parentUid == request.auth.uid || resource.data.expiresAt < request.time);
+    }
+
+    // ── Family Documents ────────────────────────────────────────────────
+    match /families/{familyId} {
+      // Child creates the family document. parentUid must start unclaimed — pairing is the
+      // only path that may ever bind one; a device can never self-assign a parent.
+      allow create: if isAuthenticated() &&
+                    request.resource.data.childUid == request.auth.uid &&
+                    request.resource.data.parentUid == null;
+
+      // Read by parent or child of this family
+      allow read: if isFamilyMember(familyId);
+
+      // parentUid/childUid are immutable once set (spec Part D). The only two legal updates
+      // to this document, ever, are: (1) the one-time parent claim during pairing, and
+      // (2) the child updating its own device name. Neither branch can touch the other's
+      // identity fields, which is what closes the family-hijack hole: previously "any
+      // existing family member" could rewrite parentUid/childUid to anything with no
+      // field restriction at all.
+      allow update: if isAuthenticated() && (
+        // Case 1: initial parent claim during pairing — binds parentUid exactly once.
+        (resource.data.parentUid == null &&
+          request.resource.data.parentUid == request.auth.uid &&
+          request.resource.data.childUid == resource.data.childUid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['parentUid'])) ||
+        // Case 2: the child updates its own device name only.
+        (isChildOfFamily(familyId) &&
+          request.resource.data.parentUid == resource.data.parentUid &&
+          request.resource.data.childUid == resource.data.childUid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childDeviceName']))
+      );
+
+      // Parent or child can unpair/delete
+      allow delete: if isFamilyMember(familyId);
+
+      // ── Config Subcollection (Parent → Child) ─────────────────────────
+      match /config/current {
+        allow read: if isFamilyMember(familyId);
+        // The child bootstraps a safe, disabled-by-default config stub while setting up
+        // pairing (no parent is bound yet at that point, so isParentOfFamily can't apply).
+        // Every subsequent write is parent-only — the child cannot use this path to modify
+        // its own restrictions once config/current exists.
+        allow create: if isChildOfFamily(familyId) &&
+                      request.resource.data.enabled == false;
+        allow update: if isParentOfFamily(familyId);
+
+        match /apps/{packageName} {
+          allow read: if isFamilyMember(familyId);
+          allow write: if isParentOfFamily(familyId);
+        }
+      }
+
+      // ── Status Subcollection (Child → Parent) ─────────────────────────
+      match /status/current {
+        allow read: if isFamilyMember(familyId);
+        // Only child can write status
+        allow write: if isChildOfFamily(familyId);
+      }
+
+      // ── Catalog Subcollection (Child → Parent) ────────────────────────
+      match /catalog/current {
+        allow read: if isFamilyMember(familyId);
+        // Only child can write app catalog
+        allow write: if isChildOfFamily(familyId);
+      }
+
+      // ── Time Requests Subcollection (Child → Parent) ──────────────────
+      match /requests/{requestId} {
+        allow read: if isFamilyMember(familyId);
+        allow create: if isChildOfFamily(familyId);
+        allow update: if isParentOfFamily(familyId);
+        allow delete: if isParentOfFamily(familyId);
+      }
+    }
+  }
+}

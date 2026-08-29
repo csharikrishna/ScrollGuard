@@ -31,6 +31,12 @@ keystore.properties
 *.jks
 *.keystore
 
+# Firebase client config is project-specific (not a secret per se — the real security
+# boundary is Firestore Rules + Auth + App Check — but it's environment-specific like the
+# signing config above, so it follows the same local-file + committed-sample convention).
+# See app/google-services.json.sample.
+app/google-services.json
+
 # Personal editor settings
 .vscode/
 

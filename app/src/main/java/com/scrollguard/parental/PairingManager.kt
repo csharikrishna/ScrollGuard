@@ -1,0 +1,168 @@
+package com.scrollguard.parental
+
+import android.os.Build
+import android.util.Log
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
+import java.security.SecureRandom
+
+/**
+ * Handles the pairing handshake between parent and child devices.
+ *
+ * **Child flow:** generates a `families/{familyId}` doc and a `pairing/{code}` doc,
+ * then displays the code. The child waits for the parent to claim it.
+ *
+ * **Parent flow:** enters the pairing code, a Firestore transaction validates
+ * (exists, not expired, not consumed), binds `parentUid`, marks consumed.
+ *
+ * Codes are 6-character alphanumeric, 5-minute TTL, single-use (transactional).
+ */
+object PairingManager {
+
+    private const val TAG = "PairingManager"
+    private const val PAIRING_CODE_LENGTH = 6
+    private const val PAIRING_TTL_MS = 5 * 60 * 1000L // 5 minutes
+
+    private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+
+    /**
+     * Generates a random alphanumeric pairing code.
+     */
+    private fun generateCode(): String {
+        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // No 0/O/1/I to avoid confusion
+        val random = SecureRandom()
+        return (1..PAIRING_CODE_LENGTH).map { chars[random.nextInt(chars.length)] }.joinToString("")
+    }
+
+    /**
+     * Child-side: creates a family document and a pairing code.
+     * Returns (familyId, pairingCode) on success.
+     */
+    suspend fun generatePairingCode(childUid: String): Result<Pair<String, String>> {
+        return try {
+            // Create the family document.
+            val familyRef = firestore.collection("families").document()
+            val familyId = familyRef.id
+            val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}"
+
+            familyRef.set(mapOf(
+                "childUid" to childUid,
+                "parentUid" to null,
+                "childDeviceName" to deviceName,
+                "createdAt" to FieldValue.serverTimestamp()
+            )).await()
+
+            // Create the initial config subcollection.
+            familyRef.collection("config").document("current").set(mapOf(
+                "enabled" to false,
+                "configVersion" to 0,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )).await()
+
+            // Create the initial status subcollection.
+            familyRef.collection("status").document("current").set(mapOf(
+                "consumedEpochDay" to 0,
+                "lastSeen" to FieldValue.serverTimestamp(),
+                "syncState" to "SYNCED",
+                "accessibilityHealthy" to true
+            )).await()
+
+            // Create the pairing code.
+            val code = generateCode()
+            val pairingRef = firestore.collection("pairing").document(code)
+            pairingRef.set(mapOf(
+                "familyId" to familyId,
+                "parentUid" to null,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "expiresAt" to com.google.firebase.Timestamp(
+                    java.util.Date(System.currentTimeMillis() + PAIRING_TTL_MS)
+                ),
+                "consumed" to false
+            )).await()
+
+            Log.i(TAG, "Pairing code generated for family $familyId")
+            Result.success(Pair(familyId, code))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to generate pairing code", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Parent-side: claims a pairing code via atomic Firestore transaction.
+     * Returns the familyId on success.
+     */
+    suspend fun claimPairingCode(code: String, parentUid: String): Result<String> {
+        return try {
+            val pairingRef = firestore.collection("pairing").document(code.uppercase())
+
+            val familyId = firestore.runTransaction { transaction ->
+                val pairingDoc = transaction.get(pairingRef)
+
+                if (!pairingDoc.exists()) {
+                    throw Exception("Invalid pairing code")
+                }
+
+                val consumed = pairingDoc.getBoolean("consumed") ?: false
+                if (consumed) {
+                    throw Exception("Pairing code already used")
+                }
+
+                val expiresAt = pairingDoc.getTimestamp("expiresAt")
+                if (expiresAt != null && expiresAt.toDate().time < System.currentTimeMillis()) {
+                    throw Exception("Pairing code expired")
+                }
+
+                val familyId = pairingDoc.getString("familyId")
+                    ?: throw Exception("Pairing code has no family reference")
+
+                // Mark code as consumed.
+                transaction.update(pairingRef, mapOf(
+                    "consumed" to true,
+                    "parentUid" to parentUid
+                ))
+
+                // Bind parent UID into the family document.
+                val familyRef = firestore.collection("families").document(familyId)
+                transaction.update(familyRef, "parentUid", parentUid)
+
+                familyId
+            }.await()
+
+            Log.i(TAG, "Pairing code claimed. Family: $familyId")
+            Result.success(familyId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to claim pairing code", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Unpairs the child from the family. Clears the family document.
+     */
+    suspend fun unpair(familyId: String): Result<Unit> {
+        return try {
+            firestore.collection("families").document(familyId).delete().await()
+            Log.i(TAG, "Unpaired from family $familyId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to unpair", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Checks if the pairing is complete (parent has claimed the code).
+     * Returns the parent UID if paired, null otherwise.
+     */
+    suspend fun checkPairingStatus(familyId: String): String? {
+        return try {
+            val doc = firestore.collection("families").document(familyId).get().await()
+            doc.getString("parentUid")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to check pairing status", e)
+            null
+        }
+    }
+}
