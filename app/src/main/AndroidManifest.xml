@@ -12,8 +12,11 @@
          explicitly through Settings.ACTION_USAGE_ACCESS_SETTINGS (see AppPickerActivity). This
          is the documented pattern for apps that need optional usage-access data. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-
-    <!-- Lottie animations are bundled locally; no INTERNET permission needed. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <!-- Package-visibility scope for the app picker: only launchable (user-facing) apps need to
          be selectable as block targets, so this is deliberately narrower than QUERY_ALL_PACKAGES. -->
@@ -49,6 +52,12 @@
         </activity>
 
         <activity
+            android:name=".SetupGuideActivity"
+            android:exported="false"
+            android:label="Get ScrollGuard Ready"
+            android:theme="@style/Theme.ScrollGuard" />
+
+        <activity
             android:name=".AppPickerActivity"
             android:exported="false"
             android:label="Select Apps"
@@ -70,6 +79,24 @@
         <activity
             android:name=".PinActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".ParentalControlActivity"
+            android:exported="false"
+            android:label="@string/parental_control"
+            android:theme="@style/Theme.ScrollGuard" />
+
+        <activity
+            android:name=".ParentalAppPickerActivity"
+            android:exported="false"
+            android:label="@string/select_apps_to_restrict"
+            android:theme="@style/Theme.ScrollGuard" />
+
+        <activity
+            android:name=".AppGroupsActivity"
+            android:exported="false"
+            android:label="@string/app_groups"
+            android:theme="@style/Theme.ScrollGuard" />
 
         <service
             android:name=".TimerService"
@@ -95,7 +122,7 @@
 
         <receiver
             android:name=".BootReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>

@@ -38,7 +38,28 @@ class AppPickerActivity : AppCompatActivity() {
         binding.rvApps.layoutManager = LinearLayoutManager(this)
 
         setupSearch()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-checks Usage Access (and everything else) fresh on every resume, not just on
+        // first open — otherwise a user who grants Usage Access via the snackbar's "GRANT"
+        // action and returns from Settings saw stale (blank) per-app usage times until they
+        // fully closed and reopened this screen.
         loadApps()
+    }
+
+    override fun onCreateOptionsMenu(menu: android.view.Menu?): Boolean {
+        menuInflater.inflate(R.menu.menu_app_picker, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: android.view.MenuItem): Boolean {
+        if (item.itemId == R.id.action_groups) {
+            startActivity(Intent(this, AppGroupsActivity::class.java))
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun setupSearch() {

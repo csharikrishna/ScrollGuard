@@ -1,7 +1,6 @@
 package com.scrollguard
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
@@ -24,7 +23,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -56,7 +54,17 @@ class MainActivity : AppCompatActivity() {
 
         loadSavedConfig()
         setupListeners()
-        checkNotificationPermission()
+
+        // First-ever launch (or first launch after updating from a version without this guide):
+        // explain what ScrollGuard does and why it needs each permission before asking for any
+        // of them — previously the very first thing a new user saw was a bare system
+        // notification-permission dialog with zero context. Once the guide has been shown, it's
+        // never auto-launched again (it stays reachable from the permissions card below).
+        if (!SetupGuideActivity.hasSeenGuide(this)) {
+            startActivity(Intent(this, SetupGuideActivity::class.java))
+        } else {
+            checkNotificationPermission()
+        }
 
         // Replaces the old "com.scrollguard.TICK" broadcast receiver with a direct collection
         // of TimerState's in-process StateFlow. repeatOnLifecycle handles start/stop for us,
@@ -158,19 +166,28 @@ class MainActivity : AppCompatActivity() {
         }
         binding.tvAllowMin.setOnClickListener { showDirectEntryDialog(binding.tvAllowMin) }
 
-        binding.btnOverlay.setOnClickListener {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                "package:$packageName".toUri()))
+        // All three permission-card buttons open the full Setup Guide rather than jumping
+        // straight to a raw system Settings screen — the guide explains *why* each permission
+        // is needed before sending the user there (see SetupGuideActivity), instead of leaving
+        // the "why" to the system's own, more technical dialog/settings text.
+        binding.btnTimeLimitInfo.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.time_limit_info_title)
+                .setMessage(R.string.time_limit_info_body)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         }
 
-        binding.btnSetup.setOnClickListener { showAccessibilityHelpDialog() }
+        binding.btnOverlay.setOnClickListener {
+            startActivity(Intent(this, SetupGuideActivity::class.java))
+        }
 
-        // BatteryLife lint warning is intentional here: ScrollGuard's entire purpose is a
-        // long-running background enforcement service, which is exactly the documented,
-        // Play-Console-declarable use case for this exemption (see Play Console's
-        // "Background location/battery" declaration flow for device-management-style apps).
+        binding.btnSetup.setOnClickListener {
+            startActivity(Intent(this, SetupGuideActivity::class.java))
+        }
+
         binding.btnBattery.setOnClickListener {
-            requestIgnoreBatteryOptimizations()
+            startActivity(Intent(this, SetupGuideActivity::class.java))
         }
 
         binding.btnApps.setOnClickListener { v ->
@@ -181,6 +198,11 @@ class MainActivity : AppCompatActivity() {
         binding.btnStats.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
             TransitionUtil.startWithFade(this, Intent(this, UsageStatsActivity::class.java))
+        }
+
+        binding.btnParental.setOnClickListener { v ->
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+            TransitionUtil.startWithFade(this, Intent(this, ParentalControlActivity::class.java))
         }
 
         binding.toggleStrictness.addOnButtonCheckedListener { _, checkedId, isChecked ->
@@ -229,14 +251,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @SuppressLint("BatteryLife")
-    private fun requestIgnoreBatteryOptimizations() {
-        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-            data = "package:$packageName".toUri()
-        }
-        startActivity(intent)
-    }
-
     /**
      * Strict Mode / Device Admin (FIX: previously the app could show the switch as ON while
      * the user had cancelled the system Device Admin dialog, and turning it OFF never actually
@@ -248,13 +262,25 @@ class MainActivity : AppCompatActivity() {
                 TimerState.strictMode = true
                 TimerState.save(this)
             } else {
-                // Don't persist strictMode=true yet — wait for the user to actually grant
-                // admin in the system dialog. onResume() reconciles the real outcome.
-                val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
-                    putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this@MainActivity, AdminReceiver::class.java))
-                    putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, getString(R.string.admin_description))
-                }
-                startActivity(intent)
+                // Explain what this actually does in-app, before bouncing to the system's own
+                // Device Admin dialog — previously this jumped straight there with no in-app
+                // context at all. Revert the switch if the user backs out here, since nothing
+                // has been granted yet.
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.strict_mode_uninstall))
+                    .setMessage(getString(R.string.admin_description))
+                    .setPositiveButton(getString(R.string.setup_step_open_settings)) { _, _ ->
+                        // Don't persist strictMode=true yet — wait for the user to actually
+                        // grant admin in the system dialog. onResume() reconciles the outcome.
+                        val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                            putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this@MainActivity, AdminReceiver::class.java))
+                            putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, getString(R.string.admin_description))
+                        }
+                        startActivity(intent)
+                    }
+                    .setNegativeButton(android.R.string.cancel) { _, _ -> syncStrictModeSwitch(false) }
+                    .setOnCancelListener { syncStrictModeSwitch(false) }
+                    .show()
             }
         } else {
             if (isDeviceAdminActive()) {
@@ -283,27 +309,6 @@ class MainActivity : AppCompatActivity() {
         binding.switchStrict.setOnCheckedChangeListener(strictModeListener)
     }
 
-    private fun showAccessibilityHelpDialog() {
-        val message = StringBuilder()
-        message.append("1. Find 'ScrollGuard Blocker' in the list.\n")
-        message.append("2. Turn the switch ON.\n\n")
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            message.append("⚠️ If 'Restricted Setting' appears:\n")
-            message.append("Go to App Info > Three Dots (top right) > 'Allow restricted settings', then try again.\n\n")
-        }
-
-        message.append("Note: If it's already ON but showing 'Not Working', try turning it OFF and then ON again.")
-
-        AlertDialog.Builder(this)
-            .setTitle("Accessibility Setup")
-            .setMessage(message.toString())
-            .setPositiveButton("Open Settings") { _, _ ->
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
 
     private fun checkAndStartTracking() {
         when {
@@ -354,9 +359,15 @@ class MainActivity : AppCompatActivity() {
         val overlayOk = Settings.canDrawOverlays(this)
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         val batteryOk = pm.isIgnoringBatteryOptimizations(packageName)
+        // Notifications aren't gated by their own button in this card (Android 13+ only, and
+        // not required for blocking to function) — btnSetup doubles as the generic "something
+        // still needs attention" entry point into the full guide when it's the only thing left.
+        val notifOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
 
-        binding.cardPermissions.visibility = if (accessOk && overlayOk && batteryOk) View.GONE else View.VISIBLE
-        binding.btnSetup.visibility   = if (accessOk)   View.GONE else View.VISIBLE
+        binding.cardPermissions.visibility = if (accessOk && overlayOk && batteryOk && notifOk) View.GONE else View.VISIBLE
+        binding.btnSetup.visibility   = if (accessOk && notifOk) View.GONE else View.VISIBLE
         binding.btnOverlay.visibility = if (overlayOk)  View.GONE else View.VISIBLE
         binding.btnBattery.visibility = if (batteryOk)  View.GONE else View.VISIBLE
 

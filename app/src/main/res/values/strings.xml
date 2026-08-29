@@ -18,8 +18,8 @@
     <string name="allow_time_min">Break Window (min)</string>
     <string name="gentle">GENTLE</string>
     <string name="nuclear">NUCLEAR</string>
-    <string name="mode_desc_gentle">Lets you dismiss the block screen after 15 seconds for a short break, then it locks again automatically.</string>
-    <string name="mode_desc_nuclear">Aggressive mode. The block screen cannot be dismissed until the timer runs out. Home/Recents may still exit the app — see README.</string>
+    <string name="mode_desc_gentle">You can dismiss the block screen for a 1-minute break, once per lock — then it locks again automatically. The break only applies to the app you dismissed it from; other restricted apps stay blocked.</string>
+    <string name="mode_desc_nuclear">The block screen cannot be dismissed until the timer runs out. Note: pressing Home or opening Recents can still switch away from the block screen — ScrollGuard will show it again as soon as you return to the restricted app, but it can\'t stop you from using Home/Recents themselves.</string>
     <string name="enter_minutes_title">Enter minutes</string>
     <string name="symbol_minus">-</string>
     <string name="symbol_plus">+</string>
@@ -37,8 +37,8 @@
     <string name="strict_mode_uninstall">Strict Mode (Uninstall Protection)</string>
     <string name="action_required">Action Required</string>
     <string name="enable_overlay">Enable Overlay</string>
-    <string name="enable_accessibility">Enable Accessibility</string>
     <string name="ignore_battery_opt">Ignore Battery Optimization</string>
+    <string name="complete_setup">Complete Setup</string>
 
     <!-- App Picker -->
     <string name="choose_apps">Choose Apps</string>
@@ -68,8 +68,8 @@
     <string name="action_retry">RETRY</string>
 
     <!-- PIN Activity -->
-    <string name="admin_access">ADMIN ACCESS</string>
-    <string name="pin_solve_format">Strict Mode: Solve %1$d + %2$d</string>
+    <string name="admin_access">Confirm to End Session</string>
+    <string name="pin_solve_format">Solve to end your session: %1$d + %2$d</string>
     <string name="pin_success">Focus Session Ended. ✅</string>
     <string name="pin_failure">Incorrect. Try again. ❌</string>
     <string name="pin_cooldown_format">Too many wrong answers — try again in %1$ds</string>
@@ -109,7 +109,7 @@
 
     <!-- Parental Control: Role Selection -->
     <string name="parental_control">Parental Control</string>
-    <string name="parental_control_subtitle">Manage app usage remotely</string>
+    <string name="parental_control_subtitle">Let a parent set and adjust app time limits on this device from their own phone. Setting this up creates a free account and syncs the app list and time limits (not browsing activity or content) between the two devices.</string>
     <string name="setup_as_child">Set up as Child</string>
     <string name="setup_as_child_desc">Let a parent manage your app time limits</string>
     <string name="setup_as_parent">I\'m a Parent</string>
@@ -128,6 +128,8 @@
     <string name="parent_create_account">Create Account</string>
     <string name="email_hint">Email address</string>
     <string name="password_hint">Password</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="password_reset_sent">If an account exists for that email, a password reset link has been sent.</string>
     <string name="enter_pairing_code">Enter Pairing Code</string>
     <string name="pair_with_child">Pair with Child</string>
     <string name="scan_qr_code">Scan QR Code</string>
@@ -172,7 +174,7 @@
     <string name="edit_group">Edit Group</string>
 
     <!-- Emergency Override -->
-    <string name="emergency_pass_btn">Emergency Pass (5 min)</string>
+    <string name="emergency_pass_btn">Emergency Pass (5 min, once per day)</string>
     <string name="emergency_pass_granted">Emergency pass activated (5 min) ⏳</string>
     <string name="emergency_pass_used_today">Emergency pass already used today. Available again tomorrow.</string>
     <string name="ask_extra_time_btn">Ask for +10 Minutes</string>
@@ -203,5 +205,36 @@
     <string name="error_sync_failed">Sync failed. Will retry automatically.</string>
     <string name="error_fill_fields">Please fill in all fields</string>
     <string name="error_password_short">Password must be at least 6 characters</string>
+    <string name="error_no_connection">No internet connection. Check your connection and try again.</string>
+    <string name="error_permission_denied">That action wasn\'t allowed. Try signing out and back in.</string>
+    <string name="error_generic_retry">Something went wrong. Please try again.</string>
+    <string name="error_invalid_credentials">Incorrect email or password.</string>
+    <string name="error_account_exists">An account already exists with that email. Try signing in instead.</string>
+    <string name="error_change_not_saved">Change not saved — %1$s</string>
+    <string name="child_needs_repair">Connection lost with this account. Unpair below, then set up as a child again to reconnect.</string>
+
+    <!-- Setup Guide -->
+    <string name="setup_guide_title">Get ScrollGuard Ready</string>
+    <string name="setup_guide_intro">ScrollGuard blocks distracting apps on a timer you control: usable for a while, then locked, on repeat. To do that reliably, it needs a few permissions from your phone — here\'s exactly what and why.</string>
+    <string name="setup_step_apps_title">Choose apps to restrict</string>
+    <string name="setup_step_apps_why">Pick which apps ScrollGuard should block once your locked time begins. You can change this anytime.</string>
+    <string name="setup_step_accessibility_title">Accessibility access</string>
+    <string name="setup_step_accessibility_why">This is what lets ScrollGuard notice when you open a restricted app so it can block it. Without it, ScrollGuard can\'t detect app launches at all.\n\nTap \"Open Settings\", find \"ScrollGuard Blocker\" in the list, and turn it on. Then come back here — we\'ll check automatically.\n\nIf you see \"Restricted Setting\" instead of a switch: open ScrollGuard\'s App Info, tap the three dots in the top right, choose \"Allow restricted settings\", then try again.\n\nIf it\'s already on but not working, try turning it off and back on again.</string>
+    <string name="setup_step_overlay_title">Display over other apps</string>
+    <string name="setup_step_overlay_why">The lock screen ScrollGuard shows has to appear on top of the app you\'re trying to use — this permission is what allows that.\n\nTap \"Open Settings\" and turn the switch on for ScrollGuard, then come back here.</string>
+    <string name="setup_step_battery_title">Ignore battery optimization</string>
+    <string name="setup_step_battery_why">Android aggressively pauses background apps to save power, which can stop ScrollGuard\'s timer from running while your screen is off. Exempting ScrollGuard keeps it working reliably.\n\nTap \"Open Settings\" and allow ScrollGuard to run in the background, then come back here.</string>
+    <string name="setup_step_notifications_title">Notifications</string>
+    <string name="setup_step_notifications_why">ScrollGuard shows an ongoing notification with your remaining time, and will alert you if blocking ever stops working. Tap \"Allow\" on the prompt.</string>
+    <string name="setup_step_done">Done</string>
+    <string name="setup_step_action_needed">Action needed</string>
+    <string name="setup_step_open_settings">Open Settings</string>
+    <string name="setup_step_allow">Allow</string>
+    <string name="setup_guide_continue">Continue to ScrollGuard</string>
+    <string name="setup_guide_all_done">Everything\'s set up — you\'re ready to go.</string>
+    <string name="setup_guide_recommended_label">Recommended</string>
+    <string name="cd_info">More information</string>
+    <string name="time_limit_info_title">How Free / Lock / Break work</string>
+    <string name="time_limit_info_body">Your session runs in a repeating cycle:\n\n• Free — your restricted apps are usable for the number of minutes you set here. This only happens once, right when you tap Start.\n\n• Lock — after Free time runs out, restricted apps are blocked for the Lock duration.\n\n• Break — after each Lock, you get a short Break window (this duration, not Free time) before it locks again. Break repeats with Lock for as long as the session runs.\n\nThis follows real elapsed time even if you never open the app during a Lock or Break window — leaving it alone doesn\'t restart, extend, or skip anything.</string>
 </resources>
 

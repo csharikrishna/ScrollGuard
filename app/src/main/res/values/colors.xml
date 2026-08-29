@@ -14,6 +14,7 @@
     <!-- Status Colors -->
     <color name="error">#D93025</color>
     <color name="warning">#F9AB00</color>
+    <color name="success">#1E8E3E</color>
 
     <!-- Text -->
     <color name="text_primary">#202124</color>   <!-- Dark Gray -->
