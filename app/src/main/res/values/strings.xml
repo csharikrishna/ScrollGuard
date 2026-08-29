@@ -101,4 +101,106 @@
     <string name="notif_health_warning_prefix">⚠️ %1$s</string>
     <string name="notif_accessibility_lost_title">ScrollGuard can\'t block apps right now</string>
     <string name="notif_accessibility_lost_text">The Accessibility service was turned off or stopped. Tap to fix it.</string>
+
+    <!-- Parental Control: Block Activity -->
+    <string name="parental_limit_reached">DAILY LIMIT REACHED</string>
+    <string name="parental_time_spent_format">%1$d / %2$d min used</string>
+    <string name="parental_ask_parent">Ask your parent to adjust your daily allowance</string>
+
+    <!-- Parental Control: Role Selection -->
+    <string name="parental_control">Parental Control</string>
+    <string name="parental_control_subtitle">Manage app usage remotely</string>
+    <string name="setup_as_child">Set up as Child</string>
+    <string name="setup_as_child_desc">Let a parent manage your app time limits</string>
+    <string name="setup_as_parent">I\'m a Parent</string>
+    <string name="setup_as_parent_desc">Control your child\'s app usage remotely</string>
+
+    <!-- Parental Control: Child Pairing -->
+    <string name="child_pairing_title">Pair with Parent</string>
+    <string name="child_pairing_code_label">Your Pairing Code</string>
+    <string name="child_waiting_for_parent">Waiting for parent to enter this code…</string>
+    <string name="child_paired_success">Paired successfully! ✅</string>
+    <string name="child_status_paired">Connected to parent</string>
+    <string name="child_status_syncing">Syncing…</string>
+
+    <!-- Parental Control: Parent Auth -->
+    <string name="parent_sign_in">Sign In</string>
+    <string name="parent_create_account">Create Account</string>
+    <string name="email_hint">Email address</string>
+    <string name="password_hint">Password</string>
+    <string name="enter_pairing_code">Enter Pairing Code</string>
+    <string name="pair_with_child">Pair with Child</string>
+    <string name="scan_qr_code">Scan QR Code</string>
+    <string name="or_enter_manually">or enter 6-digit code manually</string>
+    <string name="child_qr_hint">Scan with parent phone or enter code below</string>
+
+    <!-- Parental Control: Parent Dashboard -->
+    <string name="parent_dashboard_title">Parent Dashboard</string>
+    <string name="child_device">Child Device</string>
+    <string name="child_connected">Connected</string>
+    <string name="child_last_seen_format">Last seen: %1$s</string>
+    <string name="child_offline">Offline</string>
+    <string name="restrictions_enabled">Restrictions ON</string>
+    <string name="restrictions_disabled">Restrictions OFF</string>
+    <string name="child_status_loading">Loading…</string>
+    <string name="cd_remove_restriction">Remove restriction</string>
+    <string name="cd_edit_group">Edit group</string>
+    <string name="cd_delete_group">Delete group</string>
+    <string name="cd_pairing_qr_code">Pairing QR code</string>
+    <string name="cd_restrict_app_format">Restrict %1$s</string>
+    <string name="manage_apps">Manage Apps</string>
+    <string name="no_restricted_apps">No apps restricted yet.\nTap \'Manage Apps\' to get started.</string>
+    <string name="remaining_format">%1$d min remaining</string>
+    <string name="allowance_format">%1$d / %2$d min</string>
+    <string name="unpair">Unpair</string>
+    <string name="unpair_confirm">Are you sure you want to unpair this device? The child will no longer be restricted.</string>
+
+    <!-- Parental Control: App Picker -->
+    <string name="select_apps_to_restrict">Select apps to restrict</string>
+    <string name="set_daily_limit">Set daily limit (minutes)</string>
+
+    <!-- App Groups -->
+    <string name="app_groups">App Groups</string>
+    <string name="app_groups_subtitle">Custom cycle timers for categories like Social Media &amp; Gaming</string>
+    <string name="create_group">Create Group</string>
+    <string name="group_name_hint">Group Name (e.g. Social Media)</string>
+    <string name="no_groups_yet">No custom groups yet.\nCreate one to set unique timers for app categories!</string>
+    <string name="group_cycle_format">%1$dm use / %2$dm lock</string>
+    <string name="assigned_apps_count">%1$d apps in group</string>
+    <string name="delete_group_confirm">Delete this group? Apps will revert to the standard focus cycle.</string>
+    <string name="assign_apps">Assign Apps</string>
+    <string name="edit_group">Edit Group</string>
+
+    <!-- Emergency Override -->
+    <string name="emergency_pass_btn">Emergency Pass (5 min)</string>
+    <string name="emergency_pass_granted">Emergency pass activated (5 min) ⏳</string>
+    <string name="emergency_pass_used_today">Emergency pass already used today. Available again tomorrow.</string>
+    <string name="ask_extra_time_btn">Ask for +10 Minutes</string>
+    <string name="request_sent_waiting">Request sent to parent… Waiting for approval ⏳</string>
+    <string name="request_approved">Parent approved +10 minutes! 🎉</string>
+    <string name="request_denied">Parent denied extra time request ❌</string>
+    <string name="pending_time_requests">Pending Time Requests</string>
+    <string name="approve">Approve</string>
+    <string name="deny">Deny</string>
+    <string name="child_requested_time_format">%1$s requested +%2$d min for %3$s</string>
+
+    <!-- Advanced Analytics -->
+    <string name="top_blocked_apps">MOST BLOCKED APPS (WEEKLY)</string>
+    <string name="discipline_score_label">Discipline Score</string>
+    <string name="times_blocked_format">%1$d blocks</string>
+    <string name="total_blocks_count_format">%1$d total intercepts</string>
+    <string name="no_blocks_yet">No blocked apps yet this week. Great job staying focused!</string>
+
+    <!-- Errors -->
+    <string name="error_invalid_code">Invalid pairing code</string>
+    <string name="error_code_expired">Pairing code has expired</string>
+    <string name="error_code_used">Pairing code already used</string>
+    <string name="error_auth_failed">Authentication failed</string>
+    <string name="error_generate_code_failed">Failed to generate pairing code</string>
+    <string name="error_family_id_missing">Family ID missing</string>
+    <string name="unpaired_success">Unpaired</string>
+    <string name="error_sync_failed">Sync failed. Will retry automatically.</string>
+    <string name="error_fill_fields">Please fill in all fields</string>
+    <string name="error_password_short">Password must be at least 6 characters</string>
 </resources>
+
