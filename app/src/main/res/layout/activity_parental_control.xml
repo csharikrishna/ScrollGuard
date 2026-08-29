@@ -240,6 +240,16 @@
                 android:textAllCaps="false"
                 app:cornerRadius="12dp" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnForgotPassword"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/forgot_password"
+                android:textColor="@color/text_secondary"
+                android:textAllCaps="false"
+                android:layout_marginTop="4dp" />
+
             <ProgressBar
                 android:id="@+id/progressAuth"
                 android:layout_width="wrap_content"

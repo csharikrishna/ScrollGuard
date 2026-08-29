@@ -81,7 +81,7 @@ object PairingManager {
                 "consumed" to false
             )).await()
 
-            Log.i(TAG, "Pairing code generated for family $familyId")
+            Log.i(TAG, "Pairing code generated")
             Result.success(Pair(familyId, code))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to generate pairing code", e)
@@ -130,7 +130,7 @@ object PairingManager {
                 familyId
             }.await()
 
-            Log.i(TAG, "Pairing code claimed. Family: $familyId")
+            Log.i(TAG, "Pairing code claimed")
             Result.success(familyId)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to claim pairing code", e)
@@ -144,7 +144,7 @@ object PairingManager {
     suspend fun unpair(familyId: String): Result<Unit> {
         return try {
             firestore.collection("families").document(familyId).delete().await()
-            Log.i(TAG, "Unpaired from family $familyId")
+            Log.i(TAG, "Unpaired")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to unpair", e)

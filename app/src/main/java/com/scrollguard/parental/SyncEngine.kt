@@ -244,7 +244,7 @@ class SyncEngine(private val context: Context) {
                 "updatedAt" to FieldValue.serverTimestamp()
             )).await()
 
-            Log.i(TAG, "Global enabled set to $enabled for family $familyId")
+            Log.i(TAG, "Global enabled set to $enabled")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to write global enabled", e)
