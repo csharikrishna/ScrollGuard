@@ -17,3 +17,9 @@
 
 # Data model classes crossing the Room boundary.
 -keep class com.scrollguard.data.** { *; }
+
+# WorkManager instantiates Workers (SyncWorker) reflectively by class name, resolved from its
+# own internal work database — R8 can't trace that, so without this the release build could
+# silently strip/rename SyncWorker, breaking the periodic parental-control safety-net sync with
+# no crash, only a caught ClassNotFoundException inside WorkManager's own error handling.
+-keep class com.scrollguard.parental.** { *; }

@@ -125,6 +125,18 @@ Or via command line:
 
 ---
 
+## Firebase Setup
+
+The parental-control feature (Parent → Firebase → Child sync) needs a `google-services.json` from your own Firebase project. It's not committed — it's project-specific, not a secret (the security boundary is Firestore Rules + Auth + App Check, not this file's contents), so it follows the same local-file + committed-sample convention as release signing:
+
+```bash
+cp app/google-services.json.sample app/google-services.json
+# replace it with the real file downloaded from your Firebase project's
+# Project settings -> General -> Your apps -> google-services.json
+```
+
+Local/offline ScrollGuard usage needs no login and doesn't touch Firebase at all; this file is only required for the app to compile once the `google-services` Gradle plugin is applied (which is unconditional, so even a build that never opens Parental Control needs a valid file present).
+
 ## Release Signing
 
 Release builds are unsigned by default (`app-release-unsigned.apk`) so a fresh clone always builds without needing production credentials. To produce an installable, signed release, provide signing credentials one of two ways — nothing is ever committed to the repo:
@@ -159,6 +171,8 @@ Then:
 Release builds run R8 minification and resource shrinking; the deobfuscation map is written to `app/build/outputs/mapping/release/mapping.txt` — keep it per release if you ever need to symbolicate a release-build crash report.
 
 CI (`.github/workflows/android-ci.yml`) builds, lints, and tests on every push/PR, and additionally produces a signed release APK/AAB when a `v*` tag is pushed, provided the repo secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and `RELEASE_KEY_PASSWORD` are configured (Settings → Secrets and variables → Actions).
+
+Every CI job also needs a `GOOGLE_SERVICES_JSON_BASE64` secret — `app/google-services.json` is required by the Firebase Gradle plugin but isn't committed (see "Firebase Setup" below), so CI writes it from this secret before building. Generate it with `base64 -w0 app/google-services.json` (macOS: drop `-w0`) and store the output as that secret. Without it, every job fails immediately, including plain unit tests.
 
 ---
 

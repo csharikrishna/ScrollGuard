@@ -70,7 +70,7 @@ class SyncWorker(
         // safety-net sync would silently no-op precisely in the process-death scenario it
         // exists to recover from. Re-hydrating from Room is idempotent and cheap.
         val dao = ScrollGuardDatabase.getDatabase(applicationContext).parentalDao()
-        ParentalControlState.hydrateFromRoom(dao)
+        ParentalControlState.hydrateFromRoom(applicationContext, dao)
 
         // Only sync if paired.
         if (!ParentalControlState.isPaired) {

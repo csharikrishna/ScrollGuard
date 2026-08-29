@@ -5,6 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.scrollguard.data.ScrollGuardDatabase
+import com.scrollguard.parental.SyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
 
@@ -27,6 +32,24 @@ class BootReceiver : BroadcastReceiver() {
                     ContextCompat.startForegroundService(context, serviceIntent)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to restart TimerService after boot", e)
+                }
+            }
+
+            // Hydrate parental control state from Room and schedule sync.
+            // This ensures parental restrictions survive reboot (spec Issue E).
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val dao = ScrollGuardDatabase.getDatabase(context).parentalDao()
+                    ParentalControlState.hydrateFromRoom(context, dao)
+                    if (ParentalControlState.isPaired) {
+                        SyncWorker.schedule(context)
+                        Log.i(TAG, "Parental state hydrated and sync scheduled after boot")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to hydrate parental state after boot", e)
+                } finally {
+                    pendingResult.finish()
                 }
             }
         }
