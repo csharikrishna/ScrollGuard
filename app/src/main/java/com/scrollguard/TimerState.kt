@@ -92,9 +92,9 @@ object TimerState {
 
     fun getRemainingSeconds(): Long {
         if (phase == Phase.IDLE) return 0L
-        val nowWall = System.currentTimeMillis()
-        val rWall = (phaseEndTimeWall - nowWall) / 1000
-        return if (rWall < 0) 0L else rWall
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val rElapsed = (phaseEndTimeElapsed - nowElapsed) / 1000
+        return rElapsed.coerceAtLeast(0L)
     }
 
     /**
@@ -104,12 +104,12 @@ object TimerState {
      * immediately re-detects and re-blocks in a tight loop.
      */
     fun grantGrace(packageName: String, durationMs: Long = GENTLE_GRACE_DURATION_MS) {
-        graceUntilByPackage[packageName] = System.currentTimeMillis() + durationMs
+        graceUntilByPackage[packageName] = SystemClock.elapsedRealtime() + durationMs
     }
 
     private fun isInGrace(packageName: String): Boolean {
         val until = graceUntilByPackage[packageName] ?: return false
-        if (System.currentTimeMillis() >= until) {
+        if (SystemClock.elapsedRealtime() >= until) {
             graceUntilByPackage.remove(packageName)
             return false
         }
@@ -166,16 +166,18 @@ object TimerState {
         save(context)
     }
 
+    /**
+     * Advances the phase to reflect however much real time has actually elapsed, catching up
+     * through *every* missed transition in one call (see [catchUp]) rather than just one step.
+     * TimerService's 1-second loop calls this in the healthy case, but BlockerAccessibilityService
+     * also calls it directly on every accessibility event — so a single call here is what makes
+     * blocking decisions self-healing even if the background tick loop was paused (Doze mode,
+     * App Standby, or an OEM background-kill) for longer than one phase. Without this, the
+     * enforcement decision would trust a phase value that only the (unreliable) tick loop keeps
+     * current, and could stay frozen — including frozen *unlocked* — indefinitely.
+     */
     fun tick(context: Context) {
-        if (phase == Phase.IDLE) return
-        val nowWall = System.currentTimeMillis()
-        val nowElapsed = SystemClock.elapsedRealtime()
-        val hasTimePassed = if (phase == Phase.LOCKED) {
-            nowWall >= phaseEndTimeWall && nowElapsed >= phaseEndTimeElapsed
-        } else {
-            nowWall >= phaseEndTimeWall || nowElapsed >= phaseEndTimeElapsed
-        }
-        if (hasTimePassed) transitionNext(context, nowWall, nowElapsed)
+        catchUp(context, rebooted = false)
     }
 
     private fun transitionNext(context: Context, nowWall: Long, nowElapsed: Long) {
@@ -359,6 +361,27 @@ object TimerState {
             return
         }
 
+        val changed = catchUp(context, rebooted)
+        if (changed || rebooted) save(context)
+    }
+
+    /**
+     * Advances phase forward through as many transitions as [nowWall]/[nowElapsed] (captured
+     * fresh, internally) actually justify, capped at [maxIterations] to avoid spinning after an
+     * extreme gap. Shared by [tick] (the normal per-second/per-event path, always [rebooted] =
+     * false) and [healState] (the cold-start/reboot-recovery path). Anchoring each transition to
+     * the *theoretical* deadline of the phase that just ended — rather than to "now" — means a
+     * phase's configured duration is exact even when the call that notices its end is itself
+     * late: that lateness doesn't compound across a chain of catch-up transitions.
+     *
+     * Pure in-memory arithmetic except for [transitionNext]'s own save-on-change — safe to call
+     * on every accessibility event, not just once a second.
+     */
+    private fun catchUp(context: Context, rebooted: Boolean): Boolean {
+        if (phase == Phase.IDLE) return false
+        val nowWall = System.currentTimeMillis()
+        val nowElapsed = SystemClock.elapsedRealtime()
+
         val maxIterations = 10
         var iterations = 0
         var changed = false
@@ -387,11 +410,10 @@ object TimerState {
         }
 
         if (iterations >= maxIterations && isRunning()) {
-            Log.w(TAG, "healState hit iteration cap ($maxIterations), forcing IDLE")
+            Log.w(TAG, "catchUp hit iteration cap ($maxIterations), forcing IDLE")
             reset(context)
-            return
+            return true
         }
-
-        if (changed) save(context)
+        return changed
     }
 }

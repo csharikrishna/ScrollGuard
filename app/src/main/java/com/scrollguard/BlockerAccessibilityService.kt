@@ -119,6 +119,14 @@ class BlockerAccessibilityService : AccessibilityService() {
     // ── Blocking logic (dual engine) ────────────────────────────────────
 
     private fun checkAndBlockCurrentApp() {
+        // Self-heal the phase from elapsed real time on every check, rather than trusting
+        // whatever TimerState.phase currently holds. TimerService's 1-second Handler loop is
+        // the normal way phase advances, but Android does not guarantee that loop keeps firing
+        // (Doze mode, App Standby, OEM background-kill) — this AccessibilityService itself is
+        // far more likely to survive such stalls, so it must be able to notice a phase is stale
+        // and catch up before making a block/allow decision, instead of acting on a frozen value.
+        TimerState.tick(applicationContext)
+
         val rootNode = rootInActiveWindow
         val activePkg = rootNode?.packageName?.toString()
 

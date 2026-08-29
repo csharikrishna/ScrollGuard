@@ -181,6 +181,7 @@ class TimerStateTest {
         TimerState.grantGrace("com.instagram.android", durationMs = 300L)
         assertFalse(TimerState.isAppBlocked("com.instagram.android"))
 
+        ShadowSystemClock.advanceBy(Duration.ofMillis(500))
         Thread.sleep(500)
 
         assertTrue(
@@ -402,6 +403,93 @@ class TimerStateTest {
             TimerState.Phase.IDLE,
             TimerState.phase
         )
+    }
+
+    // ---- Self-healing catch-up: correctness must not depend on a live tick loop ----
+
+    @Test
+    fun tick_selfHealsMultipleMissedTransitions_whenCalledOnceAfterLongStall() {
+        // Reproduces the real bug behind the user's report: BlockerAccessibilityService makes
+        // its block/allow decision by calling tick() directly (not load()), and previously
+        // tick() only ever advanced ONE phase per call. TimerService's 1-second Handler loop is
+        // what's *supposed* to keep calling tick() often enough that this never matters — but
+        // Android does not guarantee that loop keeps firing (Doze mode, App Standby, an OEM
+        // background-kill). This simulates that loop having been stalled across THREE phase
+        // boundaries (FREE->LOCKED->ALLOWED->LOCKED) with zero tick() calls in between, then
+        // makes exactly ONE tick() call — exactly what happens when the user finally opens the
+        // monitored app after the stall. A single call must fully resolve to the phase that
+        // matches real elapsed time, not just advance one step and leave the rest stale.
+        TimerState.freeDuration = 1L
+        TimerState.lockDuration = 1L
+        TimerState.allowDuration = 1L
+        TimerState.start(context) // FREE, deadline at +1s
+
+        advanceClocks(3) // 3s pass with NO tick() calls at all -- the simulated stall
+
+        TimerState.tick(context) // the single check on app-open, post-stall
+
+        assertEquals(
+            "a single tick() after a long stall must land on the phase that matches real " +
+                "elapsed time (FREE->LOCKED->ALLOWED->LOCKED), not stop after one transition",
+            TimerState.Phase.LOCKED,
+            TimerState.phase
+        )
+        assertEquals(
+            "the ALLOWED->LOCKED transition midway through the stall must still have been " +
+                "counted as a completed cycle",
+            1,
+            TimerState.cycleCount
+        )
+    }
+
+    @Test
+    fun unlockedWindowNotOpened_stillGetsFullDuration_whenNextCheckedLate() {
+        // Directly tests the user's reported fear: does NOT opening the monitored app during an
+        // unlocked (ALLOWED) window cause the next cycle to "restart", shrink, or get stuck? Each
+        // phase's duration is derived solely from configured duration + elapsed time, never from
+        // whether the app was actually opened during it -- this proves that invariant holds even
+        // when the very first check after the gap happens late, well into a later phase.
+        TimerState.freeDuration = 5L
+        TimerState.lockDuration = 5L
+        TimerState.allowDuration = 5L
+        TimerState.start(context) // FREE, 0-5s
+
+        advanceClocks(5); TimerState.tick(context) // -> LOCKED, 5-10s
+        assertEquals(TimerState.Phase.LOCKED, TimerState.phase)
+
+        // The user never opens the monitored app during this LOCKED phase or the ALLOWED
+        // window that follows it -- simulate by not calling tick() again until well past both,
+        // into the next LOCKED phase (15-20s).
+        advanceClocks(11)
+        TimerState.tick(context) // the first check since -- e.g. user opens the app at last
+
+        assertEquals(
+            "must reflect the actual configured cycle position at the real current time -- " +
+                "the skipped ALLOWED window must not have been shortened or the cycle restarted",
+            TimerState.Phase.LOCKED,
+            TimerState.phase
+        )
+        assertEquals(1, TimerState.cycleCount)
+    }
+
+    @Test
+    fun rapidRepeatedChecks_aroundPhaseTransition_transitionExactlyOnce() {
+        // Simulates the accessibility service firing many times in quick succession (normal
+        // behavior around any window-state change) right around a phase boundary. Repeated
+        // tick() calls before the deadline must be no-ops; the transition must happen exactly
+        // once, not be skipped or double-applied.
+        TimerState.freeDuration = 2L
+        TimerState.lockDuration = 60L
+        TimerState.start(context)
+
+        repeat(20) { TimerState.tick(context) } // rapid re-checks, well before the deadline
+        assertEquals(TimerState.Phase.FREE, TimerState.phase)
+
+        advanceClocks(2)
+        repeat(20) { TimerState.tick(context) } // rapid re-checks, at/after the deadline
+
+        assertEquals(TimerState.Phase.LOCKED, TimerState.phase)
+        assertEquals(0, TimerState.cycleCount)
     }
 
     @Test
