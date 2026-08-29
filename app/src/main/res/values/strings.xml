@@ -179,6 +179,7 @@
     <string name="request_sent_waiting">Request sent to parent… Waiting for approval ⏳</string>
     <string name="request_approved">Parent approved +10 minutes! 🎉</string>
     <string name="request_denied">Parent denied extra time request ❌</string>
+    <string name="error_request_send_failed">Failed to send request</string>
     <string name="pending_time_requests">Pending Time Requests</string>
     <string name="approve">Approve</string>
     <string name="deny">Deny</string>
