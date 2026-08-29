@@ -263,8 +263,18 @@ Findings from independent subagent read-only audit (Explore agent), triaged belo
 
 ## Part 25: Final Report
 
-- [ ] Static analysis sweep (TODO/FIXME/catch-all/Log.d/!!/@Suppress)
-- [ ] Full build+test+lint suite
-- [ ] Firestore rules emulator suite (re-run)
-- [ ] Real device/emulator walkthrough
-- [ ] Final report written with required sections + verdict
+- [x] Static analysis sweep: zero TODO/FIXME/HACK/XXX, zero printStackTrace, zero Log.d/Log.v,
+      zero !! non-null assertions in app/src/main/java. All @Suppress narrow and justified.
+      catch(Exception) blocks reviewed as a class: consistently either log-and-continue for
+      OS-triggered callbacks or Result-wrapping for async ops — the concrete silently-ignored-
+      Result instances (parental dashboard) are exactly what this session already fixed.
+- [x] Full build+test+lint suite: `./gradlew clean test lintDebug lintRelease assembleDebug
+      assembleRelease` — BUILD SUCCESSFUL, 29/29 tests passing in both debug and release
+      variants (58 executions), 0 lint errors, 23 pre-existing warnings (none introduced).
+- [x] Firestore rules emulator suite re-run: 34/34 passing (unchanged, firestore.rules not
+      touched this session).
+- [x] Real device/emulator walkthrough: see dedicated section above — full setup guide flow,
+      full FREE/LOCKED/BREAK/LOCKED cycle with real accessibility-service enforcement, end
+      session flow, all confirmed working on-device.
+- [x] Final report written: TIMER_UX_AUDIT_REPORT.md, all 12 requested sections, verdict
+      READY AFTER FIXES.
