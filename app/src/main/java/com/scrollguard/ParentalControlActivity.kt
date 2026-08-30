@@ -294,9 +294,22 @@ class ParentalControlActivity : AppCompatActivity() {
                             showChildNeedsRepair()
                         }
                     } else if (config.familyId != null) {
-                        // Resuming waiting for pair — restore whatever code survived rotation
-                        // via onSaveInstanceState (Room never stores the raw code itself).
-                        showChildPairingView(config.familyId, pendingPairingCode)
+                        // Same fix as the isPaired branch above, and for the same reason: this
+                        // screen's Firestore reads/writes (regenerating a code, listening for
+                        // the parent to claim it) all require a live, signed-in session. Found
+                        // live while testing the "Get a New Code" recovery path below — without
+                        // this check, a device whose anonymous session had been lost showed the
+                        // pairing UI anyway and every Firestore call on it failed with
+                        // PERMISSION_DENIED, with the regenerate button just silently staying
+                        // disabled forever (no error surfaced) instead of explaining what's
+                        // actually wrong.
+                        if (ParentalAuthManager.isSignedIn()) {
+                            // Resuming waiting for pair — restore whatever code survived
+                            // rotation via onSaveInstanceState (Room never stores the raw code).
+                            showChildPairingView(config.familyId, pendingPairingCode)
+                        } else {
+                            showChildNeedsRepair()
+                        }
                     } else {
                         showRoleSelection()
                     }
