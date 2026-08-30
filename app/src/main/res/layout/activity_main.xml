@@ -88,7 +88,10 @@
                         android:gravity="center"
                         android:text="@string/apps_label"
                         android:textColor="@color/text_primary"
+                        android:textSize="13sp"
                         android:textStyle="bold"
+                        android:lines="2"
+                        android:paddingHorizontal="4dp"
                         app:drawableTopCompat="@android:drawable/ic_menu_agenda"
                         app:drawableTint="@color/primary"
                         android:drawablePadding="8dp" />
@@ -110,9 +113,12 @@
                         android:gravity="center"
                         android:text="@string/analytics"
                         android:textColor="@color/text_primary"
+                        android:textSize="13sp"
                         android:textStyle="bold"
+                        android:lines="2"
+                        android:paddingHorizontal="4dp"
                         app:drawableTopCompat="@android:drawable/ic_menu_sort_by_size"
-                        app:drawableTint="@color/warning"
+                        app:drawableTint="@color/primary"
                         android:drawablePadding="8dp" />
                 </com.google.android.material.card.MaterialCardView>
 
@@ -132,8 +138,10 @@
                         android:gravity="center"
                         android:text="@string/parental_control"
                         android:textColor="@color/text_primary"
-                        android:textSize="12sp"
+                        android:textSize="13sp"
                         android:textStyle="bold"
+                        android:lines="2"
+                        android:paddingHorizontal="4dp"
                         app:drawableTopCompat="@android:drawable/ic_menu_manage"
                         app:drawableTint="@color/primary"
                         android:drawablePadding="8dp" />
@@ -168,8 +176,10 @@
                             android:letterSpacing="0.1"/>
                         <ImageButton
                             android:id="@+id/btnTimeLimitInfo"
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="-8dp"
+                            android:padding="10dp"
                             android:background="?attr/selectableItemBackgroundBorderless"
                             android:src="@android:drawable/ic_menu_info_details"
                             app:tint="@color/text_secondary"
@@ -428,35 +438,30 @@
                         android:text="@string/action_required"
                         android:textColor="@color/error"
                         android:textStyle="bold"
-                        android:textSize="16sp"
+                        android:textSize="14sp"
+                        android:letterSpacing="0.1"
                         android:layout_marginBottom="16dp"/>
 
                     <Button
                         android:id="@+id/btnOverlay"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/ScrollGuard.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/enable_overlay"
-                        android:textColor="@color/text_primary"
-                        app:strokeColor="@color/text_primary"
                         android:layout_marginBottom="8dp" />
                     <Button
                         android:id="@+id/btnSetup"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/ScrollGuard.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/complete_setup"
-                        android:textColor="@color/text_primary"
-                        app:strokeColor="@color/text_primary"
                         android:layout_marginBottom="8dp"/>
                     <Button
                         android:id="@+id/btnBattery"
-                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        style="@style/ScrollGuard.Button.Outlined"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/ignore_battery_opt"
-                        android:textColor="@color/text_primary"
-                        app:strokeColor="@color/text_primary"/>
+                        android:text="@string/ignore_battery_opt" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

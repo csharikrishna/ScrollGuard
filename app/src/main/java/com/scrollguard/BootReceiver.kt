@@ -18,7 +18,11 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+        // MY_PACKAGE_REPLACED fires after this app's own APK is updated/reinstalled — the OS
+        // kills TimerService (a foreground service) as part of that, and unlike a real reboot,
+        // nothing else was restarting it afterward. The recovery is identical to boot: reload
+        // state and resume the service if a session was actually running.
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
             // FIX #11: Single load here is sufficient. TimerService.onCreate()
             // also calls load() — both are idempotent and safe to run sequentially.
             TimerState.load(context)
@@ -31,7 +35,7 @@ class BootReceiver : BroadcastReceiver() {
                     }
                     ContextCompat.startForegroundService(context, serviceIntent)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to restart TimerService after boot", e)
+                    Log.e(TAG, "Failed to restart TimerService after boot/update", e)
                 }
             }
 

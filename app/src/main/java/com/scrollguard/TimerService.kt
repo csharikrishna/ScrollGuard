@@ -160,20 +160,21 @@ class TimerService : Service() {
         )
         val remaining = TimerState.getRemainingSeconds()
         val statusText = when (TimerState.phase) {
-            TimerState.Phase.FREE    -> "🟣 Free time: ${TimerState.fmtTime(remaining)} left"
-            TimerState.Phase.LOCKED  -> "🔴 LOCKED: ${TimerState.fmtTime(remaining)} remaining"
-            TimerState.Phase.ALLOWED -> "🟢 OPEN: ${TimerState.fmtTime(remaining)} remaining"
-            TimerState.Phase.IDLE    -> "⚪ Not started"
+            TimerState.Phase.FREE    -> getString(R.string.notif_phase_free, TimerState.fmtTime(remaining))
+            TimerState.Phase.LOCKED  -> getString(R.string.notif_phase_locked, TimerState.fmtTime(remaining))
+            TimerState.Phase.ALLOWED -> getString(R.string.notif_phase_open, TimerState.fmtTime(remaining))
+            TimerState.Phase.IDLE    -> getString(R.string.notif_phase_idle)
         }
-        val prefixedText = if (!TimerState.accessibilityHealthy) {
-            getString(R.string.notif_health_warning_prefix, statusText)
-        } else {
-            statusText
-        }
+        val healthy = TimerState.accessibilityHealthy
+        val title = if (healthy) getString(R.string.notif_title_active) else getString(R.string.notif_title_action_needed)
+        val text = if (healthy) statusText else getString(R.string.notif_health_warning_prefix, statusText)
+        // A single, unambiguous small icon communicates the health state instead of stacking
+        // an emoji on top of the phase text — the icon changes, the text stays plain.
+        val icon = if (healthy) android.R.drawable.ic_lock_idle_alarm else android.R.drawable.ic_dialog_alert
         return NotificationCompat.Builder(this, CHANNEL)
-            .setContentTitle("ScrollGuard Active")
-            .setContentText(prefixedText)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(icon)
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)

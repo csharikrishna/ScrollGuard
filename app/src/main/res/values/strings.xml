@@ -98,7 +98,13 @@
     <string name="toast_notifications_denied">Without notification permission, you won\'t see the ongoing timer or alerts if blocking stops working.</string>
 
     <!-- Service notifications -->
-    <string name="notif_health_warning_prefix">⚠️ %1$s</string>
+    <string name="notif_title_active">ScrollGuard Active</string>
+    <string name="notif_title_action_needed">ScrollGuard — Action Needed</string>
+    <string name="notif_phase_free">Free time: %1$s left</string>
+    <string name="notif_phase_locked">Locked: %1$s remaining</string>
+    <string name="notif_phase_open">Open: %1$s remaining</string>
+    <string name="notif_phase_idle">Not started</string>
+    <string name="notif_health_warning_prefix">Blocking paused — %1$s</string>
     <string name="notif_accessibility_lost_title">ScrollGuard can\'t block apps right now</string>
     <string name="notif_accessibility_lost_text">The Accessibility service was turned off or stopped. Tap to fix it.</string>
 
@@ -119,7 +125,7 @@
     <string name="child_pairing_title">Pair with Parent</string>
     <string name="child_pairing_code_label">Your Pairing Code</string>
     <string name="child_waiting_for_parent">Waiting for parent to enter this code…</string>
-    <string name="child_paired_success">Paired successfully! ✅</string>
+    <string name="child_paired_success">Paired successfully.</string>
     <string name="child_status_paired">Connected to parent</string>
     <string name="child_status_syncing">Syncing…</string>
 
@@ -135,6 +141,11 @@
     <string name="scan_qr_code">Scan QR Code</string>
     <string name="or_enter_manually">or enter 6-digit code manually</string>
     <string name="child_qr_hint">Scan with parent phone or enter code below</string>
+    <string name="parent_pairing_heading">Connect to your child\'s device</string>
+    <string name="regenerate_pairing_code">Get a New Code</string>
+    <string name="camera_permission_rationale_title">Camera Access</string>
+    <string name="camera_permission_rationale_body">ScrollGuard needs your camera to scan your child\'s pairing QR code. Nothing is recorded or stored — it\'s only used to read the code on screen.</string>
+    <string name="camera_permission_denied">Camera access is needed to scan the QR code. You can still enter the 6-digit code manually below.</string>
 
     <!-- Parental Control: Parent Dashboard -->
     <string name="parent_dashboard_title">Parent Dashboard</string>
@@ -224,7 +235,10 @@
     <string name="setup_step_apps_title">Choose apps to restrict</string>
     <string name="setup_step_apps_why">Pick which apps ScrollGuard should block once your locked time begins. You can change this anytime.</string>
     <string name="setup_step_accessibility_title">Accessibility access</string>
+    <string name="setup_step_accessibility_short">Needed so ScrollGuard can detect when you open a restricted app.</string>
     <string name="setup_step_accessibility_why">This is what lets ScrollGuard notice when you open a restricted app so it can block it. Without it, ScrollGuard can\'t detect app launches at all.\n\nTap \"Open Settings\", find \"ScrollGuard Blocker\" in the list, and turn it on. Then come back here — we\'ll check automatically.\n\nIf you see \"Restricted Setting\" instead of a switch: open ScrollGuard\'s App Info, tap the three dots in the top right, choose \"Allow restricted settings\", then try again.\n\nIf it\'s already on but not working, try turning it off and back on again.</string>
+    <string name="setup_continue_without_accessibility_warning">Accessibility access isn\'t on yet, so ScrollGuard can\'t detect or block restricted apps. Continue anyway?</string>
+    <string name="setup_continue_anyway">Continue Anyway</string>
     <string name="setup_step_overlay_title">Display over other apps</string>
     <string name="setup_step_overlay_why">The lock screen ScrollGuard shows has to appear on top of the app you\'re trying to use — this permission is what allows that.\n\nTap \"Open Settings\" and turn the switch on for ScrollGuard, then come back here.</string>
     <string name="setup_step_battery_title">Ignore battery optimization</string>

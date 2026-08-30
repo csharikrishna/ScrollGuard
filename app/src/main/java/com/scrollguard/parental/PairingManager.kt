@@ -90,6 +90,31 @@ object PairingManager {
     }
 
     /**
+     * Child-side: generates a fresh pairing code for a family that already exists — used when a
+     * child returns to the pairing screen after the original code was lost (e.g. the Activity
+     * was left and reopened before the parent claimed it, so the in-memory code is gone; there
+     * was previously no way to recover from this short of unpairing and starting over).
+     */
+    suspend fun regeneratePairingCode(familyId: String): Result<String> {
+        return try {
+            val code = generateCode()
+            firestore.collection("pairing").document(code).set(mapOf(
+                "familyId" to familyId,
+                "parentUid" to null,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "expiresAt" to com.google.firebase.Timestamp(
+                    java.util.Date(System.currentTimeMillis() + PAIRING_TTL_MS)
+                ),
+                "consumed" to false
+            )).await()
+            Result.success(code)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to regenerate pairing code", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Parent-side: claims a pairing code via atomic Firestore transaction.
      * Returns the familyId on success.
      */
@@ -139,16 +164,37 @@ object PairingManager {
     }
 
     /**
-     * Unpairs the child from the family. Clears the family document.
+     * Unpairs the child from the family and deletes all of that family's data.
+     *
+     * Firestore does not cascade-delete subcollections when a parent document is deleted — a
+     * document delete only ever removes that one document. Deleting just the family doc (the
+     * previous behavior) silently orphaned config/current (+ its apps subcollection),
+     * status/current, catalog/current, and every doc under requests/ — a real privacy gap, since
+     * both parent and child are told "Unpaired" as if the relationship's data were gone.
      */
     suspend fun unpair(familyId: String): Result<Unit> {
         return try {
-            firestore.collection("families").document(familyId).delete().await()
-            Log.i(TAG, "Unpaired")
+            val familyRef = firestore.collection("families").document(familyId)
+            deleteCollection(familyRef.collection("config").document("current").collection("apps"))
+            familyRef.collection("config").document("current").delete().await()
+            familyRef.collection("status").document("current").delete().await()
+            familyRef.collection("catalog").document("current").delete().await()
+            deleteCollection(familyRef.collection("requests"))
+            familyRef.delete().await()
+            Log.i(TAG, "Unpaired and cleared family data")
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to unpair", e)
             Result.failure(e)
+        }
+    }
+
+    /** Deletes every document in a collection. Fine at this app's per-family scale (at most a
+     *  handful of restricted apps / pending requests) — not intended for large collections. */
+    private suspend fun deleteCollection(collection: com.google.firebase.firestore.CollectionReference) {
+        val docs = collection.get().await()
+        for (doc in docs.documents) {
+            doc.reference.delete().await()
         }
     }
 

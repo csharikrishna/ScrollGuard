@@ -116,27 +116,11 @@
             android:gravity="center"
             android:visibility="gone">
 
-            <ProgressBar
-                android:id="@+id/progressPairing"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:visibility="gone" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/child_pairing_code_label"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.2" />
-
             <!-- QR Code Card -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardQrCode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:layout_marginBottom="12dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
@@ -152,12 +136,26 @@
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
+                android:id="@+id/tvQrHint"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/child_qr_hint"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp"
-                android:gravity="center" />
+                android:gravity="center"
+                android:layout_marginBottom="20dp" />
+
+            <!-- Directly labels tvPairingCode below it, not the QR card above — previously this
+                 label sat between the QR card and the code, reading ambiguously as the QR
+                 card's caption. -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/child_pairing_code_label"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.2" />
 
             <TextView
                 android:id="@+id/tvPairingCode"
@@ -178,6 +176,20 @@
                 android:text="@string/child_waiting_for_parent"
                 android:textColor="@color/text_secondary"
                 android:textSize="14sp" />
+
+            <!-- Shown instead of a live code when none survived (e.g. the child left this
+                 screen before the parent claimed the code, then came back — there's no other
+                 way to recover from that state without this). -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnRegenerateCode"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/regenerate_pairing_code"
+                android:textAllCaps="false"
+                app:cornerRadius="12dp"
+                android:layout_marginTop="16dp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Parent Auth View -->
@@ -268,6 +280,16 @@
             android:gravity="center"
             android:visibility="gone">
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/parent_pairing_heading"
+                android:textColor="@color/text_primary"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:gravity="center"
+                android:layout_marginBottom="20dp" />
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnScanQr"
                 style="@style/ScrollGuard.Button"
@@ -302,10 +324,11 @@
                     android:hint="@string/enter_pairing_code"
                     android:inputType="textCapCharacters"
                     android:maxLength="6"
-                    android:textSize="24sp"
+                    android:textSize="20sp"
                     android:fontFamily="monospace"
-                    android:letterSpacing="0.3"
-                    android:gravity="center" />
+                    android:letterSpacing="0.2"
+                    android:gravity="center"
+                    android:imeOptions="actionDone" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.button.MaterialButton

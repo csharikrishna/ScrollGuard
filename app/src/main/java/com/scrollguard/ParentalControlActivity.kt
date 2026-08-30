@@ -1,14 +1,18 @@
 package com.scrollguard
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.firebase.firestore.FirebaseFirestore
@@ -79,6 +83,7 @@ class ParentalControlActivity : AppCompatActivity() {
         android.widget.CompoundButton.OnCheckedChangeListener { _, isChecked ->
         val fid = currentConfig?.familyId
         if (fid == null) return@OnCheckedChangeListener
+        setGlobalRestrictionsChecked(isChecked)
         lifecycleScope.launch(Dispatchers.IO) {
             val result = syncEngine.writeGlobalEnabled(fid, isChecked)
             withContext(Dispatchers.Main) {
@@ -90,12 +95,25 @@ class ParentalControlActivity : AppCompatActivity() {
                     ).show()
                     // The write never landed, so the child device never received this change —
                     // revert the switch to the state it was in before this tap.
-                    binding.switchGlobalRestrictions.setOnCheckedChangeListener(null)
-                    binding.switchGlobalRestrictions.isChecked = !isChecked
-                    binding.switchGlobalRestrictions.setOnCheckedChangeListener(globalRestrictionsListener)
+                    setGlobalRestrictionsChecked(!isChecked)
                 }
             }
         }
+    }
+
+    /**
+     * The switch's on-screen label ("Restrictions ON"/"Restrictions OFF") was hardcoded in the
+     * layout and never actually updated — only isChecked was ever touched, so a parent could see
+     * the switch visually off while the label still read "Restrictions ON". This is the single
+     * place that changes isChecked, so the label can never drift from it again.
+     */
+    private fun setGlobalRestrictionsChecked(enabled: Boolean) {
+        binding.switchGlobalRestrictions.setOnCheckedChangeListener(null)
+        binding.switchGlobalRestrictions.isChecked = enabled
+        binding.switchGlobalRestrictions.text = getString(
+            if (enabled) R.string.restrictions_enabled else R.string.restrictions_disabled
+        )
+        binding.switchGlobalRestrictions.setOnCheckedChangeListener(globalRestrictionsListener)
     }
 
     // The pairing code is only ever known transiently (never persisted to Room — it's a
@@ -114,6 +132,20 @@ class ParentalControlActivity : AppCompatActivity() {
             val scannedCode = result.contents.trim().uppercase()
             binding.etPairingCode.setText(scannedCode)
             performClaimPairingCode()
+        }
+        // No else branch: by the time this launches, CAMERA permission has already been
+        // explicitly checked/requested by us (see launchQrScanner()), so a null result here
+        // just means the user backed out of the scanner — not a permission denial silently
+        // masquerading as one, which was the previous ambiguity.
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            launchQrScanner()
+        } else {
+            Toast.makeText(this, getString(R.string.camera_permission_denied), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -158,17 +190,15 @@ class ParentalControlActivity : AppCompatActivity() {
 
         // Parent Claim Code & QR Scan
         binding.btnClaimCode.setOnClickListener { performClaimPairingCode() }
-        binding.btnScanQr.setOnClickListener {
-            val options = ScanOptions().apply {
-                setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                setPrompt(getString(R.string.scan_qr_code))
-                setCameraId(0)
-                setBeepEnabled(true)
-                setBarcodeImageEnabled(false)
-                setOrientationLocked(true)
+        binding.etPairingCode.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                performClaimPairingCode()
+                true
+            } else {
+                false
             }
-            qrScanLauncher.launch(options)
         }
+        binding.btnScanQr.setOnClickListener { requestCameraThenScan() }
 
         // Parent Dashboard
         binding.rvRestrictedApps.layoutManager = LinearLayoutManager(this)
@@ -218,7 +248,11 @@ class ParentalControlActivity : AppCompatActivity() {
         binding.rvRestrictedApps.adapter = appAdapter
 
         globalRestrictionsListener = buildGlobalRestrictionsListener()
-        binding.switchGlobalRestrictions.setOnCheckedChangeListener(globalRestrictionsListener)
+        // Syncs the label to the switch's actual (default, unchecked) state up front — the
+        // layout's static text otherwise reads "Restrictions ON" for the brief window before
+        // the dashboard's first Firestore snapshot arrives, while the switch itself defaults
+        // to unchecked.
+        setGlobalRestrictionsChecked(binding.switchGlobalRestrictions.isChecked)
 
         binding.btnManageApps.setOnClickListener {
             val fid = currentConfig?.familyId ?: return@setOnClickListener
@@ -381,16 +415,50 @@ class ParentalControlActivity : AppCompatActivity() {
         hideAllViews()
         binding.layoutChildPairing.visibility = View.VISIBLE
         if (code != null) {
+            binding.cardQrCode.visibility = View.VISIBLE
+            binding.tvQrHint.visibility = View.VISIBLE
+            binding.tvPairingCode.visibility = View.VISIBLE
+            binding.tvPairingStatus.visibility = View.VISIBLE
+            binding.btnRegenerateCode.visibility = View.GONE
             binding.tvPairingCode.text = code
             val qr = generateQrBitmap(code)
             if (qr != null) {
                 binding.ivQrCode.setImageBitmap(qr)
             }
+            listenForPairing(familyId)
         } else {
-            binding.tvPairingCode.text = "..."
+            // No code survived (e.g. the child left and returned to this screen before the
+            // parent claimed it) — there's nothing to show or listen for until a new one is
+            // generated, so offer that directly instead of a permanently frozen "...".
+            binding.cardQrCode.visibility = View.GONE
+            binding.tvQrHint.visibility = View.GONE
+            binding.tvPairingCode.visibility = View.GONE
+            binding.tvPairingStatus.visibility = View.GONE
+            binding.btnRegenerateCode.visibility = View.VISIBLE
+            binding.btnRegenerateCode.setOnClickListener {
+                binding.btnRegenerateCode.isEnabled = false
+                lifecycleScope.launch(Dispatchers.IO) {
+                    val result = PairingManager.regeneratePairingCode(familyId)
+                    withContext(Dispatchers.Main) {
+                        binding.btnRegenerateCode.isEnabled = true
+                        val newCode = result.getOrNull()
+                        if (newCode != null) {
+                            pendingPairingCode = newCode
+                            showChildPairingView(familyId, newCode)
+                        } else {
+                            Toast.makeText(
+                                this@ParentalControlActivity,
+                                getString(R.string.error_generate_code_failed),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            }
         }
+    }
 
-        // Listen for parent to claim the code
+    private fun listenForPairing(familyId: String) {
         pairingListener?.remove()
         pairingListener = firestore.collection("families").document(familyId)
             .addSnapshotListener { snapshot, error ->
@@ -627,6 +695,41 @@ class ParentalControlActivity : AppCompatActivity() {
         binding.layoutParentPairing.visibility = View.VISIBLE
     }
 
+    /**
+     * Explains camera use before ever prompting for it — matching SetupGuideActivity's
+     * "explain before asking" pattern elsewhere in the app — instead of the QR library's own
+     * permission dialog appearing with zero ScrollGuard context. Skips straight to the scanner
+     * if permission is already granted (only ever shown once per install otherwise).
+     */
+    private fun requestCameraThenScan() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            launchQrScanner()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.camera_permission_rationale_title)
+                .setMessage(R.string.camera_permission_rationale_body)
+                .setPositiveButton(R.string.setup_step_allow) { _, _ ->
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
+    }
+
+    private fun launchQrScanner() {
+        val options = ScanOptions().apply {
+            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            setPrompt(getString(R.string.scan_qr_code))
+            setCameraId(0)
+            setBeepEnabled(true)
+            setBarcodeImageEnabled(false)
+            setOrientationLocked(true)
+        }
+        qrScanLauncher.launch(options)
+    }
+
     private fun performClaimPairingCode() {
         val code = binding.etPairingCode.text?.toString()?.trim()?.uppercase() ?: ""
         if (code.length != 6) {
@@ -654,6 +757,10 @@ class ParentalControlActivity : AppCompatActivity() {
                         parentalDao.upsertConfig(config)
                         currentConfig = config
                     }
+                    // The child gets an explicit "Paired successfully!" toast on their side
+                    // (onChildPairedSuccessfully) — the parent previously got no equivalent
+                    // confirmation at all, just a silent switch to the dashboard.
+                    Toast.makeText(this@ParentalControlActivity, getString(R.string.child_paired_success), Toast.LENGTH_LONG).show()
                     showParentDashboard(familyId)
                 } else {
                     Toast.makeText(
@@ -695,13 +802,13 @@ class ParentalControlActivity : AppCompatActivity() {
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot == null) return@addSnapshotListener
                 val enabled = snapshot.getBoolean("enabled") ?: false
-                binding.switchGlobalRestrictions.setOnCheckedChangeListener(null)
-                binding.switchGlobalRestrictions.isChecked = enabled
-                binding.switchGlobalRestrictions.setOnCheckedChangeListener { _, isChecked ->
-                    lifecycleScope.launch(Dispatchers.IO) {
-                        syncEngine.writeGlobalEnabled(familyId, isChecked)
-                    }
-                }
+                // Reattaches the SAME listener buildGlobalRestrictionsListener() built (which
+                // does handle write failures — reverts the switch and toasts an error) instead
+                // of a bespoke inline lambda with none. This snapshot fires almost immediately
+                // whenever the dashboard opens, so the bespoke lambda was overwriting the
+                // error-handling listener on essentially every dashboard visit, making failed
+                // toggle writes fail completely silently in practice.
+                setGlobalRestrictionsChecked(enabled)
             }
 
         // Listen for status changes (consumed time per package)

@@ -125,6 +125,12 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Fires when this app's own APK is updated/reinstalled — unlike
+                     BOOT_COMPLETED, this is the only signal that a foreground service the OS
+                     just killed for the update (TimerService) needs restarting. Without this,
+                     an in-place update during an active session left TimerService dead with no
+                     automatic recovery (see UI_AUDIT_PROGRESS.md Part 2, finding #1). -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

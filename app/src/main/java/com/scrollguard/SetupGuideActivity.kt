@@ -30,6 +30,7 @@ class SetupGuideActivity : AppCompatActivity() {
         private const val NOTIF_PERMISSION_REQUEST_CODE = 201
         private const val PREFS = "sg_setup"
         private const val KEY_HAS_SEEN_GUIDE = "has_seen_setup_guide"
+        private const val KEY_REQUESTED_NOTIF_PERMISSION = "requested_notif_permission"
 
         /** Whether the guide has ever been shown — used by MainActivity to decide whether to
          *  auto-launch it, so a returning user is never forced back through it repeatedly. */
@@ -48,7 +49,6 @@ class SetupGuideActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySetupGuideBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        markGuideSeen(this)
 
         binding.cardNotifications.visibility =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) View.VISIBLE else View.GONE
@@ -90,12 +90,40 @@ class SetupGuideActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnContinue.setOnClickListener { finish() }
+        binding.btnContinue.setOnClickListener { confirmContinue() }
     }
 
     override fun onResume() {
         super.onResume()
         refreshStatus()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Marked here, not in onCreate(): marking it as soon as the screen is merely created
+        // means a user whose process dies (or who swipes the app away) before ever interacting
+        // with it would never see this walkthrough auto-launch again on their next real open.
+        // onPause() only fires once the user has actually been looking at the screen.
+        markGuideSeen(this)
+    }
+
+    /**
+     * Accessibility is the one hard dependency — without it ScrollGuard cannot detect app
+     * launches at all, so blocking silently never functions. Continuing with every other
+     * permission fine but accessibility missing previously exited straight to the main app with
+     * no warning that nothing would actually work yet.
+     */
+    private fun confirmContinue() {
+        if (AccessibilityUtils.isBlockerServiceEnabled(this)) {
+            finish()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.setup_step_accessibility_title)
+                .setMessage(R.string.setup_continue_without_accessibility_warning)
+                .setPositiveButton(R.string.setup_continue_anyway) { _, _ -> finish() }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+        }
     }
 
     private fun openAccessibilitySettings() {
@@ -116,15 +144,29 @@ class SetupGuideActivity : AppCompatActivity() {
     }
 
     private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIF_PERMISSION_REQUEST_CODE
-                )
-            }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val alreadyRequestedBefore = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_REQUESTED_NOTIF_PERMISSION, false)
+        val canShowSystemPrompt = ActivityCompat.shouldShowRequestPermissionRationale(
+            this, Manifest.permission.POST_NOTIFICATIONS
+        )
+        if (alreadyRequestedBefore && !canShowSystemPrompt) {
+            // Denied at least once already, and Android will no longer show its own prompt —
+            // this is the permanently-denied case. The row was previously stuck forever on
+            // "Action needed" with a button that silently did nothing on every further tap.
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
+            return
         }
+
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_REQUESTED_NOTIF_PERMISSION, true).apply()
+        ActivityCompat.requestPermissions(
+            this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIF_PERMISSION_REQUEST_CODE
+        )
     }
 
     override fun onRequestPermissionsResult(
@@ -162,7 +204,14 @@ class SetupGuideActivity : AppCompatActivity() {
         )
 
         val accessibilityOk = AccessibilityUtils.isBlockerServiceEnabled(this)
-        setRowState(binding.tvAccessibilityCheck, binding.tvAccessibilityStatus, binding.btnAccessibilityAction, accessibilityOk)
+        setRowState(
+            binding.tvAccessibilityCheck, binding.tvAccessibilityStatus, binding.btnAccessibilityAction, accessibilityOk,
+            // This is the step users most often get stuck on, and its most useful guidance (the
+            // "Restricted Setting" workaround) previously lived entirely behind the (i) icon,
+            // easy to miss — show a short, one-line hint by default instead of a bare
+            // "Action needed", without duplicating the full explanation the icon still opens.
+            actionNeededText = getString(R.string.setup_step_accessibility_short)
+        )
 
         val overlayOk = Settings.canDrawOverlays(this)
         setRowState(binding.tvOverlayCheck, binding.tvOverlayStatus, binding.btnOverlayAction, overlayOk)
@@ -184,7 +233,8 @@ class SetupGuideActivity : AppCompatActivity() {
         status: TextView,
         action: View,
         done: Boolean,
-        doneText: String? = null
+        doneText: String? = null,
+        actionNeededText: String? = null
     ) {
         if (done) {
             check.text = "✓"
@@ -194,7 +244,7 @@ class SetupGuideActivity : AppCompatActivity() {
         } else {
             check.text = "○"
             check.setTextColor(ContextCompat.getColor(this, R.color.text_muted))
-            status.text = getString(R.string.setup_step_action_needed)
+            status.text = actionNeededText ?: getString(R.string.setup_step_action_needed)
             action.visibility = View.VISIBLE
         }
     }

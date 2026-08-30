@@ -49,12 +49,16 @@ class AppPickerAdapter(
 
             binding.cbMonitored.setOnCheckedChangeListener(null)
             binding.cbMonitored.isChecked = item.isMonitored
-            // Recycled ViewHolders can carry over SwitchMaterial's in-flight thumb animation
-            // from whatever the view last displayed (e.g. mid-toggle when the list was
-            // re-filtered by search) — isChecked is set correctly above, but the widget can
-            // keep rendering the previous item's visual on/off position. Force the drawable
-            // state to the just-set value immediately, with no animation, on every bind.
-            binding.cbMonitored.jumpDrawablesToCurrentState()
+            // Recycled ViewHolders can carry over SwitchMaterial's in-flight thumb-position
+            // animation from whatever the view last displayed (e.g. mid-toggle when the list
+            // was re-filtered by search) — isChecked is set correctly above, but the widget
+            // can keep rendering the previous item's visual on/off position. Calling
+            // jumpDrawablesToCurrentState() synchronously here (the previous attempt) mostly
+            // didn't help: at bind() time the view has often just been reattached/rebound and
+            // hasn't completed its layout pass for the new position yet, so the jump can act
+            // before there's anything correct to jump to. Posting it ensures it runs after
+            // layout, once the view is genuinely settled at its (possibly new) position.
+            binding.cbMonitored.post { binding.cbMonitored.jumpDrawablesToCurrentState() }
 
             binding.root.setOnClickListener {
                 binding.cbMonitored.toggle()
@@ -75,6 +79,19 @@ class AppPickerAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(filteredItems[position])
     }
+
+    // Root-cause fix for the checkbox-shows-wrong-state bug: RecyclerView pools recycled
+    // ViewHolders by view type and will silently hand back a view that was last displaying a
+    // DIFFERENT item's checked state — SwitchMaterial's thumb-slide is driven by its own
+    // internal position animator (not the standard Drawable-state mechanism), which can leave
+    // that recycled view's THUMB rendered at its old position even after isChecked is set
+    // correctly in bind() (confirmed on-device: the switch visually showed checked while a tap
+    // on it actually flipped the real value from false to true). Keying view type on the
+    // checked state means a view that last rendered "on" can never be recycled into a row that
+    // should render "off" (or vice versa) — RecyclerView keeps separate recycle pools per type
+    // — which removes the stale-recycling condition at its source instead of racing the
+    // animation after the fact.
+    override fun getItemViewType(position: Int): Int = if (filteredItems[position].isMonitored) 1 else 0
 
     override fun getItemCount(): Int = filteredItems.size
 
