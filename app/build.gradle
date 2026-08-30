@@ -5,6 +5,7 @@ plugins {
     id 'kotlin-android'
     id 'kotlin-kapt'
     id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
 }
 
 // Release signing: never committed. Resolved from (in order of precedence) environment
@@ -138,11 +139,15 @@ dependencies {
     // Charts (for Analytics)
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 
-    // Firebase (BOM, Auth, Firestore, Messaging)
+    // Firebase (BOM, Auth, Firestore, Messaging, Crashlytics)
     implementation platform('com.google.firebase:firebase-bom:33.2.0')
     implementation 'com.google.firebase:firebase-auth-ktx'
     implementation 'com.google.firebase:firebase-firestore-ktx'
     implementation 'com.google.firebase:firebase-messaging-ktx'
+    // Crash reporting — there was previously no visibility into production crashes at all.
+    // Requires Analytics as a transitive dependency of the Crashlytics SDK itself.
+    implementation 'com.google.firebase:firebase-crashlytics-ktx'
+    implementation 'com.google.firebase:firebase-analytics-ktx'
 
     // WorkManager (for background sync fallback)
     implementation "androidx.work:work-runtime-ktx:2.9.1"
