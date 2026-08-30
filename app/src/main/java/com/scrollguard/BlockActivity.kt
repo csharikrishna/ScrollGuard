@@ -179,7 +179,6 @@ class BlockActivity : AppCompatActivity() {
                     binding.tvSubMessage.text = getString(R.string.gentle_dismiss)
                     binding.tvSubMessage.isClickable = true
                     binding.tvSubMessage.setOnClickListener {
-                        Toast.makeText(this, getString(R.string.stay_strong), Toast.LENGTH_SHORT).show()
                         dismissWithGrace()
                     }
                 }
@@ -188,6 +187,11 @@ class BlockActivity : AppCompatActivity() {
     }
 
     private fun dismissWithGrace() {
+        // Shown here (not at each call site) so every way of dismissing a GENTLE-mode block —
+        // tapping the on-screen message or pressing back/swiping — gives the same feedback.
+        // Back press previously called this directly and skipped the toast entirely, making the
+        // screen just silently vanish instead.
+        Toast.makeText(this, getString(R.string.stay_strong), Toast.LENGTH_SHORT).show()
         blockedPackage?.let { pkg -> TimerState.grantGrace(pkg) }
         finish()
     }

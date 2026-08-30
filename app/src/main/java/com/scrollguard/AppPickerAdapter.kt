@@ -38,10 +38,12 @@ class AppPickerAdapter(
                 binding.tvUsageTime.visibility = android.view.View.VISIBLE
                 val hours = item.usageTimeMillis / (1000 * 60 * 60)
                 val mins = (item.usageTimeMillis / (1000 * 60)) % 60
-                binding.tvUsageTime.text = if (hours > 0) {
-                    binding.root.context.getString(R.string.usage_today_hours_format, hours, mins)
-                } else {
-                    binding.root.context.getString(R.string.usage_today_minutes_format, mins)
+                binding.tvUsageTime.text = when {
+                    hours > 0 -> binding.root.context.getString(R.string.usage_today_hours_format, hours, mins)
+                    mins > 0 -> binding.root.context.getString(R.string.usage_today_minutes_format, mins)
+                    // Real, non-zero usage (e.g. 50s) would otherwise integer-divide down to
+                    // "0m" and look like a broken feature rather than a genuinely small value.
+                    else -> binding.root.context.getString(R.string.usage_today_less_than_minute)
                 }
             } else {
                 binding.tvUsageTime.visibility = android.view.View.GONE

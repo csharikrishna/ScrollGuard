@@ -82,19 +82,30 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:contentDescription="@string/choose_apps">
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:text="@string/apps_label"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:lines="2"
-                        android:paddingHorizontal="4dp"
-                        app:drawableTopCompat="@android:drawable/ic_menu_agenda"
-                        app:drawableTint="@color/primary"
-                        android:drawablePadding="8dp" />
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:paddingTop="20dp"
+                        android:paddingHorizontal="4dp">
+                        <ImageView
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:src="@android:drawable/ic_menu_agenda"
+                            app:tint="@color/primary"
+                            android:layout_marginBottom="8dp"/>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="@string/apps_label"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:maxLines="2"
+                            android:ellipsize="end" />
+                    </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.card.MaterialCardView
@@ -107,19 +118,30 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:contentDescription="@string/analytics">
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:text="@string/analytics"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:lines="2"
-                        android:paddingHorizontal="4dp"
-                        app:drawableTopCompat="@android:drawable/ic_menu_sort_by_size"
-                        app:drawableTint="@color/primary"
-                        android:drawablePadding="8dp" />
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:paddingTop="20dp"
+                        android:paddingHorizontal="4dp">
+                        <ImageView
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:src="@android:drawable/ic_menu_sort_by_size"
+                            app:tint="@color/primary"
+                            android:layout_marginBottom="8dp"/>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="@string/analytics"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:maxLines="2"
+                            android:ellipsize="end" />
+                    </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
                 <com.google.android.material.card.MaterialCardView
@@ -132,19 +154,30 @@
                     android:clickable="true"
                     android:focusable="true"
                     android:contentDescription="@string/parental_control">
-                    <TextView
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:gravity="center"
-                        android:text="@string/parental_control"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13sp"
-                        android:textStyle="bold"
-                        android:lines="2"
-                        android:paddingHorizontal="4dp"
-                        app:drawableTopCompat="@android:drawable/ic_menu_manage"
-                        app:drawableTint="@color/primary"
-                        android:drawablePadding="8dp" />
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:paddingTop="20dp"
+                        android:paddingHorizontal="4dp">
+                        <ImageView
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:src="@android:drawable/ic_menu_manage"
+                            app:tint="@color/primary"
+                            android:layout_marginBottom="8dp"/>
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center"
+                            android:text="@string/parental_control"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:maxLines="2"
+                            android:ellipsize="end" />
+                    </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
@@ -433,6 +466,7 @@
                     android:orientation="vertical"
                     android:padding="20dp">
                     <TextView
+                        android:id="@+id/tvPermissionsCardTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="@string/action_required"

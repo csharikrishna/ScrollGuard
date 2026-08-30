@@ -123,6 +123,12 @@ class UsageStatsActivity : AppCompatActivity() {
                         }
                     }
 
+                    // MPAndroidChart otherwise sizes the X-axis range tightly around however
+                    // many entries exist, which visibly shoves a single bar (a new user's very
+                    // first day of data) hard against one edge instead of centering it — fitBars
+                    // pads the axis range by half a bar-width on each side regardless of count.
+                    binding.chart.setFitBars(true)
+
                     binding.chart.animateY(1000)
                     binding.chart.invalidate()
                 }

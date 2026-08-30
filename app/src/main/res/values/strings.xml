@@ -36,6 +36,7 @@
 
     <string name="strict_mode_uninstall">Strict Mode (Uninstall Protection)</string>
     <string name="action_required">Action Required</string>
+    <string name="one_more_recommended_step">One More Recommended Step</string>
     <string name="enable_overlay">Enable Overlay</string>
     <string name="ignore_battery_opt">Ignore Battery Optimization</string>
     <string name="complete_setup">Complete Setup</string>
@@ -49,6 +50,7 @@
     <string name="action_grant">GRANT</string>
     <string name="usage_today_hours_format">Used today: %1$dh %2$dm</string>
     <string name="usage_today_minutes_format">Used today: %1$dm</string>
+    <string name="usage_today_less_than_minute">Used today: &lt;1m</string>
 
     <!-- Block Activity -->
     <string name="focus_mode_active">FOCUS MODE ACTIVE</string>

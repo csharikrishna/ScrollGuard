@@ -378,7 +378,27 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
 
-        binding.cardPermissions.visibility = if (accessOk && overlayOk && batteryOk && notifOk) View.GONE else View.VISIBLE
+        // Battery optimization is explicitly labeled "Recommended" (optional) in the Setup
+        // Guide, unlike accessibility/overlay/notifications — but this card previously required
+        // ALL FOUR to disappear, so a user who deliberately declined battery exemption (a
+        // legitimate choice) was stuck with a permanent, alarming red "Action Required" card
+        // forever, with no way to acknowledge or dismiss it. Now: the urgent red framing is
+        // reserved for the genuinely-required items; if only battery is outstanding, the same
+        // card still shows (so it stays the one reachable path back into the Setup Guide) but
+        // with calm, non-alarming styling instead.
+        val requiredOk = accessOk && overlayOk && notifOk
+        binding.cardPermissions.visibility = if (requiredOk && batteryOk) View.GONE else View.VISIBLE
+        if (!requiredOk) {
+            binding.tvPermissionsCardTitle.text = getString(R.string.action_required)
+            binding.tvPermissionsCardTitle.setTextColor(ContextCompat.getColor(this, R.color.error))
+            binding.cardPermissions.setCardBackgroundColor(Color.parseColor("#1AD93025"))
+            binding.cardPermissions.strokeColor = ContextCompat.getColor(this, R.color.error)
+        } else {
+            binding.tvPermissionsCardTitle.text = getString(R.string.one_more_recommended_step)
+            binding.tvPermissionsCardTitle.setTextColor(ContextCompat.getColor(this, R.color.primary))
+            binding.cardPermissions.setCardBackgroundColor(ContextCompat.getColor(this, R.color.bg_surface_intense))
+            binding.cardPermissions.strokeColor = ContextCompat.getColor(this, R.color.primary)
+        }
         binding.btnSetup.visibility   = if (accessOk && notifOk) View.GONE else View.VISIBLE
         binding.btnOverlay.visibility = if (overlayOk)  View.GONE else View.VISIBLE
         binding.btnBattery.visibility = if (batteryOk)  View.GONE else View.VISIBLE

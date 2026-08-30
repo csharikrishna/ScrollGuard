@@ -3,6 +3,8 @@ package com.scrollguard
 import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.scrollguard.databinding.ActivityPinBinding
@@ -15,6 +17,10 @@ class PinActivity : AppCompatActivity() {
          *  always self-expiring — never a permanent lockout. */
         private const val MAX_ATTEMPTS_BEFORE_COOLDOWN = 3
         private const val COOLDOWN_MS = 5_000L
+        /** Brief pause between the final digit and evaluating it, so a mistyped last digit can
+         *  still be corrected with the delete key instead of instantly failing and generating a
+         *  brand new problem — matches how OTP auto-submit UIs give a moment before committing. */
+        private const val ANSWER_CHECK_DELAY_MS = 350L
     }
 
     private lateinit var binding: ActivityPinBinding
@@ -24,6 +30,8 @@ class PinActivity : AppCompatActivity() {
     private var answerLength = 3
     private var consecutiveWrongAnswers = 0
     private var cooldownTimer: CountDownTimer? = null
+    private val checkHandler = Handler(Looper.getMainLooper())
+    private var pendingCheck: Runnable? = null
 
     private lateinit var digitButtons: List<android.widget.Button>
 
@@ -51,11 +59,20 @@ class PinActivity : AppCompatActivity() {
                     // Previously, toIntOrNull() was checked on every keystroke,
                     // causing premature failure if user typed a leading zero.
                     if (enteredPin.length == answerLength) {
-                        if (enteredPin.toIntOrNull() == correctAnswer) {
-                            onSuccess()
-                        } else {
-                            onFailure()
+                        // Give a brief window before actually evaluating — a fat-fingered final
+                        // digit used to fail instantly with no way to fix just that one digit,
+                        // forcing a whole new problem. Delete (below) cancels this if pressed
+                        // in time.
+                        pendingCheck?.let { checkHandler.removeCallbacks(it) }
+                        val check = Runnable {
+                            if (enteredPin.toIntOrNull() == correctAnswer) {
+                                onSuccess()
+                            } else {
+                                onFailure()
+                            }
                         }
+                        pendingCheck = check
+                        checkHandler.postDelayed(check, ANSWER_CHECK_DELAY_MS)
                     }
                 }
             }
@@ -63,6 +80,8 @@ class PinActivity : AppCompatActivity() {
 
         binding.btnDel.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            pendingCheck?.let { checkHandler.removeCallbacks(it) }
+            pendingCheck = null
             if (enteredPin.isNotEmpty()) {
                 enteredPin = enteredPin.dropLast(1)
                 updateDots()
@@ -77,6 +96,7 @@ class PinActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         cooldownTimer?.cancel()
+        pendingCheck?.let { checkHandler.removeCallbacks(it) }
         super.onDestroy()
     }
 
