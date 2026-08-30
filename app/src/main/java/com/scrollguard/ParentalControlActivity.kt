@@ -200,10 +200,19 @@ class ParentalControlActivity : AppCompatActivity() {
             },
             onDeleteClicked = { app ->
                 val fid = currentConfig?.familyId ?: return@ParentalAppAdapter
-                lifecycleScope.launch(Dispatchers.IO) {
-                    val result = syncEngine.removeAppRestriction(fid, app.packageName)
-                    withContext(Dispatchers.Main) { handleSyncWriteResult(result, fid) }
-                }
+                // Destructive action — confirm first, matching confirmDeleteGroup()/
+                // confirmUnpair()'s existing pattern elsewhere in the app, rather than removing
+                // a child's restriction on a single mis-tap.
+                AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.delete_restriction_confirm, app.appName))
+                    .setPositiveButton(R.string.cd_remove_restriction) { _, _ ->
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            val result = syncEngine.removeAppRestriction(fid, app.packageName)
+                            withContext(Dispatchers.Main) { handleSyncWriteResult(result, fid) }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
             }
         )
         binding.rvRestrictedApps.adapter = appAdapter

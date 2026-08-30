@@ -21,14 +21,6 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
-            <!-- Group color badge -->
-            <View
-                android:id="@+id/viewColorBadge"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:background="@drawable/bg_monogram"
-                android:layout_marginEnd="12dp" />
-
             <TextView
                 android:id="@+id/tvGroupName"
                 android:layout_width="0dp"

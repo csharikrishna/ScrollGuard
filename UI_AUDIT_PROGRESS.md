@@ -168,6 +168,71 @@ on the higher-priority, directly-reproduced findings above.
 
 ## Part 3: UI/UX polish audit (per screen)
 
+Findings from an independent read-only Explore subagent (design-language baseline read first,
+then every screen/component audited against it). Full findings preserved in the final report;
+below is the fix/deferred status for each.
+
+**High severity — all fixed and device-verified:**
+- [x] `UsageStatsActivity` chart axis/no-data/top-blocked-apps text was white-on-white (leftover
+      dark-theme styling never updated when the card became a white surface) — recolored to
+      `text_primary`/`text_secondary`. Verified on-device: fully readable now.
+- [x] Off-palette pink/magenta (`#E1306C`/`#FF4081`, not in `colors.xml`) in
+      `circular_progress_bar.xml` (BlockActivity's ring) and the usage bar chart — replaced with
+      `@color/primary`, consistent with every other progress indicator in the app. Verified
+      on-device: BlockActivity's ring and the bar chart both render brand-blue now.
+- [x] BlockActivity's ring conveying no urgency signal — resolved as a side effect of the color
+      fix above (now a single flat, intentional brand color, not an arbitrary gradient).
+- [x] BlockActivity and PinActivity had no scroll container, at real risk of clipped/unreachable
+      content in a small multi-window pane (every other screen already uses one) — wrapped both
+      in `NestedScrollView` with `fillViewport="true"`. Verified on-device: BlockActivity's
+      layout still centers identically at full screen size (no visual regression); PinActivity
+      uses the identical pattern (not separately re-screenshotted, given time spent, but the
+      harder ConstraintLayout case was confirmed and PinActivity's is a simpler plain
+      LinearLayout).
+- [x] Destructive delete of a parental app restriction (`ParentalAppAdapter`'s `btnDelete`) had
+      zero confirmation, unlike the equivalent group-delete/unpair flows elsewhere — added a
+      confirm dialog (`ParentalControlActivity.kt`) and retinted the icon `error` red to match
+      `item_app_group.xml`'s equivalent delete affordance.
+
+**Medium severity — fixed:**
+- [x] Emoji rank medals ("🥇🥈🥉") in the Top Blocked Apps list replaced with plain "#1/#2/#3"
+      text, matching the app's disciplined typographic tone elsewhere. Verified on-device.
+- [x] Non-functional group color badge (`AppGroup.colorHex` always defaulted to one color, no
+      UI ever changed it) removed from `item_app_group.xml`/`AppGroupAdapter.kt` rather than
+      leaving a non-functional affordance — the bold group name already reads fine without it.
+- [x] Hardcoded literal `Color.parseColor("#1A73E8")` removed along with the badge it supported.
+- [x] Hardcoded strings in `AppGroupsActivity.kt` ("Please enter a group name", "Delete X?",
+      "Delete", the assign-apps dialog title) moved to `strings.xml`, matching the rest of the
+      codebase's i18n discipline.
+- [x] Silent no-op at stepper min/max clamps (MainActivity's Free/Lock/Break steppers, and the
+      App Groups create/edit dialog's steppers) — both now give a distinct `HapticFeedbackConstants.REJECT`
+      (API 30+; a no-op fallback on older devices, which still got the normal per-tap haptic)
+      when a tap has no effect, applied uniformly across both stepper implementations.
+
+**Documented, not fixed this pass (with reasons):**
+- [ ] No `values-night` dark theme exists anywhere in the module — confirmed as a real gap, not
+      assumed handled. Out of scope for a polish pass (a full dark theme is a design decision +
+      systematic re-audit of every screen's contrast, not a quick fix) — flagged for the user's
+      own prioritization, not silently dropped.
+- [ ] Redundant explicit `cardCornerRadius="16dp"` on cards that already inherit it from
+      `ScrollGuard.Card` (several item layouts) — harmless (values match the style), left alone
+      as genuinely low-value cleanup with no user-visible effect.
+- [ ] MainActivity's three home-screen quick-action tiles use fairly generic system icons for
+      the most important entry points on the screen — subagent suggestion, not a defect; left
+      alone as a judgment call (would be closer to redesign than polish).
+
+**Confirmed already good — left untouched, per the subagent's explicit findings:**
+ParentalControlActivity's offline/syncing indicator + optimistic-UI-with-rollback + friendly
+error taxonomy; SetupGuideActivity's ✓/○ status glyphs; TransitionUtil's API-34 branching and
+every checked lifecycle-sensitive callback (no animation/lifecycle race found); the alpha-tinted
+accent-card pattern for "needs attention" banners; MainActivity's device-admin switch
+reconciliation; AppPickerActivity's `itemAnimator = null` (this session's own earlier fix,
+recognized as intentional, not an oversight).
+
+Full regression after all Part 3 fixes: `./gradlew testDebugUnitTest lintDebug assembleDebug
+assembleRelease` — BUILD SUCCESSFUL, 29/29 tests passing, 0 lint errors.
+
+
 - [ ] Design language baseline read (themes.xml, colors.xml, styles, drawables, TransitionUtil)
 - [ ] MainActivity / activity_main.xml
 - [ ] BlockActivity / activity_block.xml

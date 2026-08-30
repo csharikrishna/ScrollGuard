@@ -156,6 +156,7 @@
     <string name="allowance_format">%1$d / %2$d min</string>
     <string name="unpair">Unpair</string>
     <string name="unpair_confirm">Are you sure you want to unpair this device? The child will no longer be restricted.</string>
+    <string name="delete_restriction_confirm">Remove the restriction on %1$s? It will no longer have a time limit.</string>
 
     <!-- Parental Control: App Picker -->
     <string name="select_apps_to_restrict">Select apps to restrict</string>
@@ -171,7 +172,11 @@
     <string name="assigned_apps_count">%1$d apps in group</string>
     <string name="delete_group_confirm">Delete this group? Apps will revert to the standard focus cycle.</string>
     <string name="assign_apps">Assign Apps</string>
+    <string name="assign_apps_to_group_format">Assign Apps: %1$s</string>
     <string name="edit_group">Edit Group</string>
+    <string name="error_group_name_required">Please enter a group name</string>
+    <string name="delete_group_title_format">Delete %1$s?</string>
+    <string name="delete">Delete</string>
 
     <!-- Emergency Override -->
     <string name="emergency_pass_btn">Emergency Pass (5 min, once per day)</string>

@@ -101,12 +101,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun adjustTimer(tv: TextView, delta: Int) {
+    /** Returns false if the tap had no effect (already at the min/max clamp), so callers can
+     *  give a distinct "denied" haptic instead of silently doing nothing. */
+    private fun adjustTimer(tv: TextView, delta: Int): Boolean {
         val current = tv.text.toString().toIntOrNull() ?: 0
         val next = (current + delta).coerceIn(
             TimerState.MIN_DURATION_MIN.toInt(), TimerState.MAX_DURATION_MIN.toInt()
         )
         tv.text = next.toString()
+        return next != current
+    }
+
+    /** Haptic feedback for a stepper tap that had no effect (already at its min/max clamp).
+     *  REJECT was only added in API 30; older devices just get no extra feedback for this case
+     *  (they still got the normal CLOCK_TICK from the caller). */
+    private fun performClampedFeedback(v: View) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            v.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+        }
     }
 
     /** Direct numeric entry, in addition to the +/- steppers — stepping from 60 to 480
@@ -138,31 +150,31 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         binding.btnFreeMinus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            adjustTimer(binding.tvFreeMin, -5)
+            if (!adjustTimer(binding.tvFreeMin, -5)) performClampedFeedback(v)
         }
         binding.btnFreePlus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            adjustTimer(binding.tvFreeMin, 5)
+            if (!adjustTimer(binding.tvFreeMin, 5)) performClampedFeedback(v)
         }
         binding.tvFreeMin.setOnClickListener { showDirectEntryDialog(binding.tvFreeMin) }
 
         binding.btnLockMinus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            adjustTimer(binding.tvLockMin, -5)
+            if (!adjustTimer(binding.tvLockMin, -5)) performClampedFeedback(v)
         }
         binding.btnLockPlus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            adjustTimer(binding.tvLockMin, 5)
+            if (!adjustTimer(binding.tvLockMin, 5)) performClampedFeedback(v)
         }
         binding.tvLockMin.setOnClickListener { showDirectEntryDialog(binding.tvLockMin) }
 
         binding.btnAllowMinus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            adjustTimer(binding.tvAllowMin, -1)
+            if (!adjustTimer(binding.tvAllowMin, -1)) performClampedFeedback(v)
         }
         binding.btnAllowPlus.setOnClickListener { v ->
             v.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
-            adjustTimer(binding.tvAllowMin, 1)
+            if (!adjustTimer(binding.tvAllowMin, 1)) performClampedFeedback(v)
         }
         binding.tvAllowMin.setOnClickListener { showDirectEntryDialog(binding.tvAllowMin) }
 

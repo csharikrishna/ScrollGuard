@@ -138,7 +138,7 @@
                 android:layout_marginStart="8dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@android:drawable/ic_menu_delete"
-                app:tint="@color/text_muted"
+                app:tint="@color/error"
                 android:contentDescription="@string/cd_remove_restriction" />
         </LinearLayout>
 
