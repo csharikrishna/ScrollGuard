@@ -232,22 +232,18 @@ recognized as intentional, not an oversight).
 Full regression after all Part 3 fixes: `./gradlew testDebugUnitTest lintDebug assembleDebug
 assembleRelease` — BUILD SUCCESSFUL, 29/29 tests passing, 0 lint errors.
 
-
-- [ ] Design language baseline read (themes.xml, colors.xml, styles, drawables, TransitionUtil)
-- [ ] MainActivity / activity_main.xml
-- [ ] BlockActivity / activity_block.xml
-- [ ] PinActivity / activity_pin.xml
-- [ ] AppPickerActivity + item layout
-- [ ] UsageStatsActivity
-- [ ] AppGroupsActivity + item_app_group.xml + dialog_edit_group.xml
-- [ ] SetupGuideActivity / activity_setup_guide.xml (new this session)
-- [ ] ParentalControlActivity / activity_parental_control.xml
-- [ ] ParentalAppPickerActivity / activity_parental_app_picker.xml + item_parental_picker.xml
-- [ ] item_parental_app.xml (ParentalAppAdapter)
-- [ ] Dialogs/Toasts/Snackbars sweep
+Note: `AppGroupAdapter.kt` and `AppGroupsActivity.kt` fixes (color-badge removal, string
+extraction, stepper haptic feedback) are applied on disk but were left uncommitted — both files
+are part of a larger pre-existing uncommitted feature (App Groups) with no prior commit history
+in this repo, so committing them now would bundle a whole unrelated feature into a UI-polish
+commit. The user should review and commit that feature on their own terms.
 
 ## Part 4/5: Final regression + report
 
-- [ ] ./gradlew testDebugUnitTest lintDebug assembleDebug
-- [ ] Manual pass over every screen touched
-- [ ] Final report written
+- [x] `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` — BUILD SUCCESSFUL,
+      29/29 tests passing, 0 lint errors (re-run after Part 3 fixes, output above).
+- [x] Manual pass over every screen touched: UsageStatsActivity (screenshot-verified),
+      BlockActivity (screenshot-verified, both normal-block and PiP-bypass-fixed cases),
+      PinActivity (layout read-verified; live screenshot not retaken separately from
+      BlockActivity's confirmation of the same NestedScrollView pattern).
+- [x] Final report written (`UI_UX_AUDIT_REPORT.md`).
