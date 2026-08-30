@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- App Groups is intentionally not exposed yet: the group-specific Free/Lock/Break
+         durations set in its UI are never actually read by the enforcement engine
+         (BlockerAccessibilityService/TimerState apply only the single global cycle) — an app
+         assigned to a "Gaming" group with a custom 2-hour allowance still just follows whatever
+         the global timer says. Shipping this entry point would let a parent configure a
+         setting that silently does nothing. The code/Room table are kept intact; wiring
+         per-group cycles into the timer engine is real, security-relevant work (see
+         PRODUCTION_READINESS.md) that deserves its own dedicated implementation + full
+         re-verification pass rather than being bolted on here. -->
     <item
         android:id="@+id/action_groups"
         android:title="@string/app_groups"
         android:icon="@android:drawable/ic_menu_sort_by_size"
-        app:showAsAction="always|withText" />
+        android:visible="false"
+        app:showAsAction="never" />
 </menu>

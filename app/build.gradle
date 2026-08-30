@@ -33,13 +33,13 @@ def hasReleaseSigningConfig = releaseStoreFilePath && releaseStorePassword && re
     rootProject.file(releaseStoreFilePath).exists()
 
 android {
-    compileSdk 34
+    compileSdk 36
     namespace "com.scrollguard"
 
     defaultConfig {
         applicationId "com.scrollguard"
         minSdk 26
-        targetSdk 34
+        targetSdk 36
         versionCode 1
         versionName "1.0"
 
@@ -155,6 +155,6 @@ dependencies {
     // SystemClock, Log) against a simulated Android environment rather than a mocked one,
     // since TimerState isn't written against an injectable clock/context abstraction.
     testImplementation "junit:junit:4.13.2"
-    testImplementation "org.robolectric:robolectric:4.13"
+    testImplementation "org.robolectric:robolectric:4.16.1"
     testImplementation "androidx.test:core:1.6.1"
 }
