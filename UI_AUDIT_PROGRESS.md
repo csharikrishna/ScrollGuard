@@ -1,5 +1,41 @@
 # UI/UX Polish + Multi-Window/PiP Bypass Audit — Progress Log
 
+## Round 2 — follow-up audit (user-reported issues + re-verification)
+
+Triggered by direct user screenshots/feedback (notification emojis, quick-action tile
+alignment, info button, Action Required card) plus an explicit instruction not to assume Round
+1's fixes still hold. Full detail in the chat summary; short version:
+
+- **Re-verified Part 1 (PiP bypass) live, end-to-end, after all other Round 2 changes.** Still
+  closed — confirmed via a genuine `type=2032` (TYPE_ACCESSIBILITY_OVERLAY) window in
+  `dumpsys window windows`, a fully black screenshot with the PiP surface still alive
+  underneath, and a clean teardown (overlay window gone) once the PiP app was force-stopped.
+- **The AppPickerActivity checkbox bug was NOT actually fixed by Round 1's two mitigations** —
+  reproduced live, confirmed via an actual tap that the switch's visual state and real
+  internal boolean had diverged. Rethought rather than re-patched: real fix is
+  `AppPickerAdapter.getItemViewType()` keyed on checked state (RecyclerView never recycles a
+  view that last rendered "on" into a row that should render "off"), plus pinning
+  `androidx.recyclerview:recyclerview:1.3.2` (was resolving to 1.1.0, predating AndroidX's own
+  Dec 2022 fix for this general bug class). Verified via 10 stress cycles in both directions.
+- **Fixed TimerService not restarting after an in-place update** (Round 1's finding #1, left
+  undone) — `BootReceiver` now also handles `ACTION_MY_PACKAGE_REPLACED`. Verified via
+  `install -r` over a running session: TimerService came back with zero manual intervention,
+  confirmed via `dumpsys`/logcat.
+- **Parental Control**: fixed the global-restrictions switch's label never updating, a
+  dashboard listener silently shadowing the one with error handling, `unpair()` orphaning
+  Firestore subcollections, no camera-permission rationale before QR scanning, a frozen "..."
+  pairing code with no recovery, an ambiguous label, a missing heading on the parent pairing
+  screen, no IME submit on the code field, and an asymmetric pairing-success confirmation.
+- **Setup Guide**: fixed `markGuideSeen()` firing before any interaction, "Continue" exiting
+  unconditionally with accessibility still missing, the accessibility step's most useful
+  troubleshooting text being hidden by default, and no handling for a permanently-denied
+  notification permission.
+- **MainActivity**: fixed inconsistent tile icon tint/text size/vertical alignment, the info
+  button's oversized visual weight, the "Action Required" card's all-caps/inconsistent
+  buttons, and the notification's two-emoji status text.
+- Full regression: `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` —
+  BUILD SUCCESSFUL, 29/29 tests, 0 lint errors.
+
 ## Part 1: Multi-Window/PiP Enforcement Bypass — RESOLVED
 
 - [x] Verified zero PiP/multi-window awareness in source (grep confirmed, before this pass).
