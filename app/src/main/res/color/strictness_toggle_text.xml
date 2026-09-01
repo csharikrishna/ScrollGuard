@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The active mode (Gentle or Nuclear) needs to be visually obvious at a glance, not just
+         inferable from a faint outline color — white-on-filled-primary for checked, muted text
+         for unchecked, so there is never any ambiguity about which mode is currently active. -->
+    <item android:state_checked="true" android:color="@color/white" />
+    <item android:color="@color/text_secondary" />
+</selector>

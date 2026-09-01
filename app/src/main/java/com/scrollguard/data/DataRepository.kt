@@ -14,10 +14,37 @@ class DataRepository private constructor(context: Context) {
     private val appDao = db.appDao()
 
     val recentUsage: Flow<List<UsageRecord>> = appDao.getRecentUsage()
+    val allGroups: Flow<List<AppGroup>> = appDao.getAllGroups()
+    val allMonitoredApps: Flow<List<AppEntry>> = appDao.getAllMonitoredApps()
 
     suspend fun addApp(app: AppEntry) = appDao.insertApp(app)
 
     suspend fun removeApp(packageName: String) = appDao.removeAppByPackage(packageName)
+
+    suspend fun addGroup(group: AppGroup) = appDao.insertGroup(group)
+
+    suspend fun deleteGroup(groupId: String) = appDao.deleteGroup(groupId)
+
+    suspend fun setAppGroup(packageName: String, groupId: String?) =
+        appDao.updateAppGroup(packageName, groupId)
+
+    suspend fun logBlockEvent(packageName: String, appName: String, blockMode: String) {
+        val today = LocalDate.now().toEpochDay()
+        appDao.insertBlockEvent(
+            BlockEvent(
+                packageName = packageName,
+                appName = appName,
+                dateEpochDay = today,
+                blockMode = blockMode
+            )
+        )
+    }
+
+    fun getTopBlockedApps(daysAgo: Long = 7, limit: Int = 5) =
+        appDao.getTopBlockedApps(LocalDate.now().toEpochDay() - daysAgo, limit)
+
+    fun getTotalBlocksCount(daysAgo: Long = 7) =
+        appDao.getTotalBlocksCount(LocalDate.now().toEpochDay() - daysAgo)
 
     /**
      * Logs or accumulates usage for today.

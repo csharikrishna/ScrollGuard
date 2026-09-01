@@ -20,9 +20,7 @@ class TimerService : Service() {
     companion object {
         private const val TAG = "TimerService"
         private const val CHANNEL = "scrollguard_channel"
-        private const val ALERT_CHANNEL = "scrollguard_alerts"
         private const val NOTIF_ID = 1
-        private const val ALERT_NOTIF_ID = 2
 
         /** Accessibility health is checked every N ticks (not every second) — a
          *  system-settings lookup every second for the life of a session is wasteful. */
@@ -66,8 +64,21 @@ class TimerService : Service() {
             "START" -> {
                 TimerState.start(applicationContext)
                 tickCount = 0
+                // Independent of this service's own in-process health check below — see
+                // AccessibilityHealthWorker's doc for why a session needs a watchdog that can
+                // survive the same OEM process-kill that would take the in-process check out too.
+                AccessibilityHealthWorker.schedule(applicationContext)
+                // Check immediately rather than waiting up to HEALTH_CHECK_INTERVAL_TICKS
+                // seconds — the very first notification a session posts must already reflect
+                // real protection state, not the optimistic default.
+                checkAccessibilityHealth()
             }
-            "RESUME" -> { /* Reconnect only — state is already loaded in onCreate */ }
+            "RESUME" -> {
+                // Reconnect only — state is already loaded in onCreate. Still re-check
+                // immediately: this process may have just been restarted (reboot, OEM kill),
+                // and the notification must not show stale health from before that happened.
+                checkAccessibilityHealth()
+            }
             "RESET" -> {
                 TimerState.reset(applicationContext)
                 ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -115,7 +126,7 @@ class TimerService : Service() {
      *  accessibility service has been disabled (by the user or the OS) — it cannot prevent an
      *  OEM from killing it in the first place. See README's Reliability Notes. */
     private fun checkAccessibilityHealth() {
-        val healthy = AccessibilityUtils.isBlockerServiceEnabled(applicationContext)
+        val healthy = AccessibilityUtils.isProtectionActive(applicationContext)
         val wasHealthy = TimerState.accessibilityHealthy
         TimerState.accessibilityHealthy = healthy
         if (!healthy && wasHealthy) {
@@ -126,27 +137,9 @@ class TimerService : Service() {
         if (!healthy) updateNotification()
     }
 
-    private fun postHealthAlert() {
-        val manager = getSystemService(NotificationManager::class.java)
-        val open = PendingIntent.getActivity(
-            this, 1, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        val notif = NotificationCompat.Builder(this, ALERT_CHANNEL)
-            .setContentTitle(getString(R.string.notif_accessibility_lost_title))
-            .setContentText(getString(R.string.notif_accessibility_lost_text))
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentIntent(open)
-            .setAutoCancel(false)
-            .setCategory(Notification.CATEGORY_ERROR)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        manager?.notify(ALERT_NOTIF_ID, notif)
-    }
+    private fun postHealthAlert() = AccessibilityHealthAlert.post(applicationContext)
 
-    private fun cancelHealthAlert() {
-        getSystemService(NotificationManager::class.java)?.cancel(ALERT_NOTIF_ID)
-    }
+    private fun cancelHealthAlert() = AccessibilityHealthAlert.cancel(applicationContext)
 
     private fun updateNotification() {
         val manager = getSystemService(NotificationManager::class.java)
@@ -192,11 +185,6 @@ class TimerService : Service() {
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
         )
-        manager.createNotificationChannel(
-            NotificationChannel(ALERT_CHANNEL, "ScrollGuard Alerts", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Warns you if blocking stops working during a session"
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            }
-        )
+        AccessibilityHealthAlert.ensureChannel(applicationContext)
     }
 }

@@ -23,11 +23,11 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.scrollguard.databinding.ActivityMainBinding
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -35,6 +35,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val NOTIF_PERMISSION_REQUEST_CODE = 101
+        /** How long to give BlockerAccessibilityService to finish (re)connecting before trusting
+         *  a "not active" reading right after resume — see the recheck in onResume(). */
+        private const val ACCESSIBILITY_RECHECK_DELAY_MS = 600L
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -50,10 +53,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setupImmersiveMode()
+        applyEdgeToEdge(binding.root)
 
         loadSavedConfig()
         setupListeners()
+        AccessibilityHealthWorker.schedule(applicationContext)
 
         // First-ever launch (or first launch after updating from a version without this guide):
         // explain what ScrollGuard does and why it needs each permission before asking for any
@@ -73,17 +77,6 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 TimerState.tickSignal.collect { updateUI() }
             }
-        }
-    }
-
-    private fun setupImmersiveMode() {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
-            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
         }
     }
 
@@ -326,10 +319,9 @@ class MainActivity : AppCompatActivity() {
         when {
             !Settings.canDrawOverlays(this) ->
                 Toast.makeText(this, getString(R.string.toast_overlay_required), Toast.LENGTH_LONG).show()
-            !AccessibilityUtils.isBlockerServiceEnabled(this) ->
+            !AccessibilityUtils.isProtectionActive(this) ->
                 Toast.makeText(this, getString(R.string.toast_accessibility_required), Toast.LENGTH_LONG).show()
             else -> {
-                TimerState.accessibilityHealthy = true
                 val i = Intent(this, TimerService::class.java).apply { action = "START" }
                 startForegroundService(i)
                 updateUI()
@@ -357,17 +349,35 @@ class MainActivity : AppCompatActivity() {
             TimerState.save(this)
         }
 
-        if (AccessibilityUtils.isBlockerServiceEnabled(this)) {
-            TimerState.accessibilityHealthy = true
-        }
+        // Runtime truth, not a config-only assumption: returning to the app (e.g. from
+        // Accessibility Settings) is exactly when a stale accessibilityHealthy=false should be
+        // corrected, but only once the service has genuinely reconnected, not merely because the
+        // system setting is toggled on.
+        TimerState.accessibilityHealthy = AccessibilityUtils.isProtectionActive(this)
 
         updateUI()
+
+        // On a cold process start where Accessibility is already genuinely enabled, this
+        // Activity's own onResume can briefly race ahead of BlockerAccessibilityService's
+        // onServiceConnected() in the very same process — the service is enabled but hasn't
+        // finished (re)binding yet, so isRuntimeConnected reads false for a moment. That produced
+        // exactly the reported bug: a correctly-granted permission flashes an "Action Required"
+        // warning that then clears itself a moment later once the service catches up. Rather than
+        // trusting that instantaneous reading as final, give the service one short window to
+        // finish connecting and re-check once — a genuine failure still shows the warning after
+        // this, it just isn't shown for a connection that was already going to succeed.
+        if (!AccessibilityUtils.isProtectionActive(this)) {
+            lifecycleScope.launch {
+                delay(ACCESSIBILITY_RECHECK_DELAY_MS)
+                updateUI()
+            }
+        }
     }
 
     private fun updateUI() {
         TimerState.load(applicationContext)
 
-        val accessOk = AccessibilityUtils.isBlockerServiceEnabled(this)
+        val accessOk = AccessibilityUtils.isProtectionActive(this)
         val overlayOk = Settings.canDrawOverlays(this)
         val pm = getSystemService(POWER_SERVICE) as PowerManager
         val batteryOk = pm.isIgnoringBatteryOptimizations(packageName)

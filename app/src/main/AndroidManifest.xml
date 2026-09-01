@@ -15,6 +15,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- firebase-analytics-ktx (pulled in directly, and transitively by Crashlytics) merges in
+         both of these permissions automatically regardless of the
+         google_analytics_adid_collection_enabled=false meta-data below — that flag only stops
+         the SDK from reading/attaching the advertising ID at runtime, it does not remove the
+         permission declaration itself. ScrollGuard has no advertising use case (this app handles
+         child usage data, where an undeclared/unused ad-ID capability is a real Play Store
+         Data Safety and child-safety-policy liability, not just unnecessary), so both are
+         explicitly stripped from the merged manifest — the documented way to opt out per
+         Firebase's own guidance for apps using Analytics/Crashlytics without ads. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -41,6 +53,19 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.ScrollGuard">
+
+        <!-- Firebase Analytics is pulled in transitively by Crashlytics (a dependency of the
+             crash-reporting SDK), but no product justification for actually collecting general
+             usage-analytics events was ever identified for this app — least of all one that
+             handles child data. Disabling collection entirely (not just the ad-ID) is the
+             minimum-necessary-access choice; Crashlytics's own crash/session data is unaffected,
+             since it doesn't depend on Analytics collection being active. -->
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
 
         <activity
             android:name=".MainActivity"
@@ -74,10 +99,12 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:excludeFromRecents="true"
+            android:resizeableActivity="false"
             android:theme="@style/Theme.ScrollGuard.Block" />
 
         <activity
             android:name=".PinActivity"
+            android:resizeableActivity="false"
             android:exported="false" />
 
         <activity
@@ -129,7 +156,7 @@
                      BOOT_COMPLETED, this is the only signal that a foreground service the OS
                      just killed for the update (TimerService) needs restarting. Without this,
                      an in-place update during an active session left TimerService dead with no
-                     automatic recovery (see UI_AUDIT_PROGRESS.md Part 2, finding #1). -->
+                     automatic recovery (see docs/audits/reports/UI_AUDIT_PROGRESS.md Part 2, finding #1). -->
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>

@@ -4,10 +4,16 @@ import android.content.Context
 import android.util.Log
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.scrollguard.ParentalControlState
+import com.scrollguard.TimerState
 import com.scrollguard.data.ScrollGuardDatabase
 import com.scrollguard.data.parental.ParentalAppRestriction
 import com.scrollguard.data.parental.ParentalConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 
@@ -24,6 +30,12 @@ class SyncEngine(private val context: Context) {
 
     companion object {
         private const val TAG = "SyncEngine"
+
+        /** How long attachLiveConfigListener waits for a second listener to fire before actually
+         *  pulling — long enough to coalesce the config-doc + apps-subcollection pair a single
+         *  parent write typically triggers, short enough to stay well under the sync-delay fix's
+         *  whole point. */
+        private const val LIVE_LISTENER_DEBOUNCE_MS = 400L
     }
 
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
@@ -110,6 +122,54 @@ class SyncEngine(private val context: Context) {
         }
     }
 
+    // ── Live config listener (parent → child, while process is alive) ───
+
+    /**
+     * Attaches live Firestore listeners for config/current and its apps subcollection, so a
+     * child device picks up a parent's restriction change immediately instead of waiting for
+     * the 15-min SyncWorker floor (Issue: parental sync delay).
+     *
+     * Deliberately not FCM. FCM's actual advantage over this is waking up a *killed* process —
+     * but this device already runs a persistent AccessibilityService (and a foreground
+     * TimerService whenever a session is active) for the entire time enforcement matters, so
+     * there's normally no killed process to wake. A listener attached from that already-running
+     * process closes the delay for the common case with zero new server infrastructure, reusing
+     * the exact same [pullConfig] merge/transaction logic SyncWorker already relies on.
+     * SyncWorker remains the correct fallback for the genuine edge case a listener can't cover —
+     * the process actually being dead (OEM background kill, long offline stretch).
+     *
+     * Callers are responsible for calling [ListenerRegistration.remove] on every returned
+     * registration when the owning component is destroyed.
+     */
+    /** Coalesces bursts from the two listeners below into a single [pullConfig] call — a parent
+     *  changing one app's allowance writes to both the apps subcollection AND bumps configVersion
+     *  on the config doc as two separate writes, so both listeners fired for what is really one
+     *  logical change, each independently launching a full pullConfig() (itself several
+     *  sequential Firestore reads) concurrently. Debouncing means a burst within [DEBOUNCE_MS]
+     *  collapses into one pull instead of two-plus racing ones. */
+    private var pendingConfigPull: Job? = null
+
+    fun attachLiveConfigListener(familyId: String, scope: CoroutineScope): List<ListenerRegistration> {
+        val configRef = firestore.collection("families").document(familyId)
+            .collection("config").document("current")
+
+        fun scheduleDebouncedPull() {
+            pendingConfigPull?.cancel()
+            pendingConfigPull = scope.launch {
+                delay(LIVE_LISTENER_DEBOUNCE_MS)
+                pullConfig()
+            }
+        }
+
+        val configListener = configRef.addSnapshotListener { _, error ->
+            if (error != null) Log.w(TAG, "Live config listener error", error) else scheduleDebouncedPull()
+        }
+        val appsListener = configRef.collection("apps").addSnapshotListener { _, error ->
+            if (error != null) Log.w(TAG, "Live apps listener error", error) else scheduleDebouncedPull()
+        }
+        return listOf(configListener, appsListener)
+    }
+
     // ── Status: push to Firestore (child → parent, throttled) ───────────
 
     /**
@@ -143,8 +203,11 @@ class SyncEngine(private val context: Context) {
                 "consumedByPackage" to consumedMap,
                 "consumedEpochDay" to today,
                 "lastSeen" to FieldValue.serverTimestamp(),
-                "syncState" to "SYNCED",
-                "accessibilityHealthy" to true
+                // Previously hardcoded to true regardless of reality — TimerState.accessibilityHealthy
+                // is the same flag TimerService's own health check already maintains, so the parent
+                // can now actually be told if the child device's enforcement mechanism (the
+                // AccessibilityService) has been disabled, instead of always reading "healthy".
+                "accessibilityHealthy" to TimerState.accessibilityHealthy
             )).await()
 
             Log.i(TAG, "Status pushed: ${restrictions.size} apps, epochDay=$today")

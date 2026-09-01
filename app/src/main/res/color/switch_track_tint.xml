@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A flat (non-stateful) trackTint applies the exact same blue to the track regardless of
+         checked state, which — combined with this SwitchMaterial style's default track/thumb
+         shapes — made every row's track render as a solid, prominent blue pill by default and
+         only look "off" once genuinely toggled. That made every freshly-loaded, unmonitored app
+         look selected at a glance, with no reliable visual way to tell an actually-checked row
+         apart from an unchecked one. Checked now gets the deliberate blue; unchecked gets a
+         muted neutral track so on/off are unambiguous immediately, with no interaction needed. -->
+    <item android:state_checked="true" android:color="@color/primary" />
+    <item android:color="@color/bg_surface_intense" />
+</selector>

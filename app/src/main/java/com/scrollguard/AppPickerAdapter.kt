@@ -51,16 +51,6 @@ class AppPickerAdapter(
 
             binding.cbMonitored.setOnCheckedChangeListener(null)
             binding.cbMonitored.isChecked = item.isMonitored
-            // Recycled ViewHolders can carry over SwitchMaterial's in-flight thumb-position
-            // animation from whatever the view last displayed (e.g. mid-toggle when the list
-            // was re-filtered by search) — isChecked is set correctly above, but the widget
-            // can keep rendering the previous item's visual on/off position. Calling
-            // jumpDrawablesToCurrentState() synchronously here (the previous attempt) mostly
-            // didn't help: at bind() time the view has often just been reattached/rebound and
-            // hasn't completed its layout pass for the new position yet, so the jump can act
-            // before there's anything correct to jump to. Posting it ensures it runs after
-            // layout, once the view is genuinely settled at its (possibly new) position.
-            binding.cbMonitored.post { binding.cbMonitored.jumpDrawablesToCurrentState() }
 
             binding.root.setOnClickListener {
                 binding.cbMonitored.toggle()

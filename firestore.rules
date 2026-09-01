@@ -46,8 +46,14 @@ service cloud.firestore {
                     request.resource.data.parentUid == request.auth.uid &&
                     request.resource.data.diff(resource.data).affectedKeys().hasOnly(['consumed', 'parentUid']);
 
+      // Deletable by: the parent who claimed it, anyone once it's expired (harmless either way),
+      // or the child whose family this code belongs to — needed so PairingManager can clean up a
+      // still-valid, not-yet-claimed code (regenerating, or unpairing before it was ever
+      // claimed) without waiting for it to expire on its own.
       allow delete: if isAuthenticated() &&
-                    (resource.data.parentUid == request.auth.uid || resource.data.expiresAt < request.time);
+                    (resource.data.parentUid == request.auth.uid ||
+                     resource.data.expiresAt < request.time ||
+                     isChildOfFamily(resource.data.familyId));
     }
 
     // ── Family Documents ────────────────────────────────────────────────
@@ -73,15 +79,21 @@ service cloud.firestore {
           request.resource.data.parentUid == request.auth.uid &&
           request.resource.data.childUid == resource.data.childUid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['parentUid'])) ||
-        // Case 2: the child updates its own device name only.
+        // Case 2: the child updates its own device name, or which pairing code is currently
+        // issued for this family (bookkeeping for PairingManager's targeted cleanup — the
+        // pairing collection itself grants no `list` access, so this pointer is what lets
+        // regenerate/unpair delete the right doc by direct ID instead of an enumeration query).
         (isChildOfFamily(familyId) &&
           request.resource.data.parentUid == resource.data.parentUid &&
           request.resource.data.childUid == resource.data.childUid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childDeviceName']))
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['childDeviceName', 'currentPairingCode']))
       );
 
-      // Parent or child can unpair/delete
-      allow delete: if isFamilyMember(familyId);
+      // Only the parent may delete the shared family record. A child that could delete this
+      // unilaterally could destroy the parent's own configuration/history with zero consent —
+      // the child's only path to end pairing is requesting it (see requests/{requestId} below)
+      // and having the parent approve, which calls the same delete with parent authority.
+      allow delete: if isParentOfFamily(familyId);
 
       // ── Config Subcollection (Parent → Child) ─────────────────────────
       match /config/current {
@@ -89,10 +101,17 @@ service cloud.firestore {
         // The child bootstraps a safe, disabled-by-default config stub while setting up
         // pairing (no parent is bound yet at that point, so isParentOfFamily can't apply).
         // Every subsequent write is parent-only — the child cannot use this path to modify
-        // its own restrictions once config/current exists.
+        // its own restrictions once config/current exists. configVersion must start at 0 —
+        // otherwise the child could self-write an arbitrary starting value here (the field is
+        // otherwise never validated against a prior value, only ever incremented).
         allow create: if isChildOfFamily(familyId) &&
-                      request.resource.data.enabled == false;
+                      request.resource.data.enabled == false &&
+                      request.resource.data.configVersion == 0;
         allow update: if isParentOfFamily(familyId);
+        // Previously missing entirely, which meant PairingManager.unpair()'s cleanup delete
+        // of this document silently failed (permission-denied) for every unpair, parent- or
+        // child-initiated — this doc was never actually being deleted, only orphaned.
+        allow delete: if isParentOfFamily(familyId);
 
         match /apps/{packageName} {
           allow read: if isFamilyMember(familyId);
@@ -117,9 +136,22 @@ service cloud.firestore {
       // ── Time Requests Subcollection (Child → Parent) ──────────────────
       match /requests/{requestId} {
         allow read: if isFamilyMember(familyId);
-        allow create: if isChildOfFamily(familyId);
+        // A request must start PENDING and be a recognized type — without this, a child could
+        // create a request with status already set to "APPROVED" directly (bypassing the app's
+        // own UI, which always creates PENDING), self-forging an approval notification. This is
+        // low-severity in practice (the actual quota/allowance data lives in config/current,
+        // which stays parent-only regardless — a forged approval here would at most cause a
+        // momentary, self-correcting UI flash), but there's no reason to leave it open.
+        allow create: if isChildOfFamily(familyId) &&
+                      request.resource.data.status == 'PENDING' &&
+                      request.resource.data.type in ['TIME', 'UNPAIR'];
         allow update: if isParentOfFamily(familyId);
-        allow delete: if isParentOfFamily(familyId);
+        // Parent can always delete (e.g. as part of a full unpair). The child may only delete a
+        // request it has already seen resolved (status != PENDING) — this is cleanup of its own
+        // consumed notification, not a way to withdraw or hide a request still awaiting the
+        // parent's decision.
+        allow delete: if isParentOfFamily(familyId) ||
+                      (isChildOfFamily(familyId) && resource.data.status != 'PENDING');
       }
     }
   }

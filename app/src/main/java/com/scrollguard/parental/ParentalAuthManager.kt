@@ -1,6 +1,7 @@
 package com.scrollguard.parental
 
 import android.util.Log
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.tasks.await
@@ -107,5 +108,43 @@ object ParentalAuthManager {
     fun signOut() {
         auth.signOut()
         Log.i(TAG, "Signed out")
+    }
+
+    /**
+     * Re-authenticates the current parent with their password. Firebase requires a "recent
+     * login" for sensitive operations like [deleteCurrentUser] — without this, a session that's
+     * been open for a while fails deletion with FirebaseAuthRecentLoginRequiredException instead
+     * of actually deleting anything.
+     */
+    suspend fun reauthenticateWithPassword(password: String): Result<Unit> {
+        return try {
+            val user = auth.currentUser ?: return Result.failure(Exception("Not signed in"))
+            val email = user.email ?: return Result.failure(Exception("No email on this account"))
+            val credential = EmailAuthProvider.getCredential(email, password)
+            user.reauthenticate(credential).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Re-authentication failed", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Deletes the current Firebase Auth user outright. Callers are responsible for deleting any
+     * associated Firestore data (e.g. via [PairingManager.unpair]) BEFORE calling this — deleting
+     * the Auth identity first would leave that data orphaned with no owner able to reach it
+     * (Firestore rules key everything off request.auth.uid, which stops existing the moment this
+     * succeeds).
+     */
+    suspend fun deleteCurrentUser(): Result<Unit> {
+        return try {
+            val user = auth.currentUser ?: return Result.failure(Exception("Not signed in"))
+            user.delete().await()
+            Log.i(TAG, "Deleted current user account")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Account deletion failed", e)
+            Result.failure(e)
+        }
     }
 }

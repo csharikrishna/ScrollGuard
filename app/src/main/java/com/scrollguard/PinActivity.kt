@@ -39,6 +39,7 @@ class PinActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityPinBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         generateTask()
 

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScrollGuard Privacy Policy</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; line-height: 1.65; color: #1a1a1a; }
+  h1 { font-size: 1.8rem; margin-bottom: 4px; }
+  .updated { color: #666; font-size: 0.9rem; margin-bottom: 2em; }
+  h2 { font-size: 1.25rem; margin-top: 2.2em; border-bottom: 2px solid #eee; padding-bottom: 6px; }
+  h3 { font-size: 1.05rem; margin-top: 1.5em; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.92rem; }
+  th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f7f7f7; }
+  code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+  .nav { margin-bottom: 2em; }
+  .nav a { margin-right: 16px; }
+  .callout { background: #f0f7ff; border: 1px solid #cfe3ff; border-radius: 8px; padding: 14px 18px; margin: 1.2em 0; }
+  ul { padding-left: 1.3em; }
+</style>
+</head>
+<body>
+  <div class="nav"><a href="/">Home</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/terms.html">Terms of Service</a><a href="/delete-account.html">Delete My Account</a></div>
+
+  <h1>ScrollGuard Privacy Policy</h1>
+  <p class="updated">Last updated: August 31, 2026</p>
+
+  <p>ScrollGuard ("the app," "we," "us") is a screen-time and focus app with two features: a
+  personal Focus Timer that anyone can use, and an optional Parental Control mode that lets a
+  parent supervise a paired child's device. This policy explains what information ScrollGuard
+  collects, why, and what you can do about it. It's written to describe exactly what the app does
+  — not generic boilerplate.</p>
+
+  <h2>1. What ScrollGuard does</h2>
+  <p><strong>Focus Timer</strong> (no account needed): you pick apps to restrict, set a lock cycle,
+  and the app blocks those apps on a schedule you control. This works entirely on your device —
+  nothing about your app selections, usage, or lock cycles is sent anywhere.</p>
+  <p><strong>Parental Control</strong> (optional, account required): a parent creates an account
+  and pairs with a child's device using a one-time code. The parent then sets daily time
+  allowances for specific apps on the child's device, and the child's device reports back how much
+  time has been used so the parent can see it.</p>
+
+  <h2>2. Information we collect</h2>
+
+  <h3>If you use only the Focus Timer</h3>
+  <p><strong>We collect nothing that leaves your device.</strong> Your app selections, timer
+  settings, usage history, and block logs are stored only in the app's local database on your
+  phone. We have no way to see this information, and it is not transmitted to us or anyone else.</p>
+
+  <h3>If you use Parental Control as a parent</h3>
+  <table>
+    <tr><th>Data</th><th>Why we collect it</th></tr>
+    <tr><td>Email address and password</td><td>To create and secure your account (handled by Google Firebase Authentication)</td></tr>
+    <tr><td>The apps you choose to restrict and the time limits you set</td><td>To enforce your restrictions on the paired child device</td></tr>
+    <tr><td>The child device's reported usage/consumption data</td><td>So you can see how much time has been used</td></tr>
+    <tr><td>A device name for the paired device (e.g. "Alex's Phone")</td><td>So you can identify which device you're managing — this field is editable, so please avoid putting a child's full name in it if you'd rather not have that stored</td></tr>
+  </table>
+
+  <h3>If your device is paired as a child device</h3>
+  <table>
+    <tr><th>Data</th><th>Why we collect it</th></tr>
+    <tr><td>An anonymous device identity</td><td>Created automatically to link your device to the pairing parent's account — this is not a personal account, has no email or password, and cannot be used to sign in anywhere else</td></tr>
+    <tr><td>The list of apps installed on the device (names and package identifiers only)</td><td>So the parent can choose which apps to restrict — we don't see what you do inside those apps</td></tr>
+    <tr><td>How much time is used in each restricted app, per day</td><td>To enforce the parent's time limits and let them see usage</td></tr>
+  </table>
+
+  <h3>What we do NOT collect, from any device</h3>
+  <ul>
+    <li>Names, birthdates, or other identifying profile information (beyond the email address a
+      parent chooses to sign up with)</li>
+    <li>Location data</li>
+    <li>Contacts, SMS, call logs, or phonebook data</li>
+    <li>The content of what you type, browse, or view inside any app — ScrollGuard only ever
+      detects which app is currently open, never what's happening inside it (see Section 4)</li>
+    <li>Advertising identifiers — we've explicitly turned this off; see Section 5</li>
+    <li>Device hardware identifiers (IMEI, MAC address, SIM serial, etc.)</li>
+  </ul>
+
+  <h2>3. Camera use (QR code pairing)</h2>
+  <p>ScrollGuard requests camera access only to scan the QR code shown during pairing. The camera
+  feed is processed on your device to read the code and is never saved, recorded, or transmitted.
+  You can also type the pairing code manually instead of using the camera at all.</p>
+
+  <h2>4. AccessibilityService use</h2>
+  <p>ScrollGuard uses Android's Accessibility API for one purpose only: detecting which app is
+  currently open on the screen, so it knows when to show a block screen. It does <strong>not</strong>
+  read on-screen text, take screenshots, record what you do inside other apps, or perform any
+  actions on your behalf. Nothing this feature detects is ever sent off your device — the decision
+  to show a block screen is made entirely locally.</p>
+
+  <h2>5. Analytics and crash reporting</h2>
+  <p>We use Firebase Crashlytics to learn about app crashes so we can fix them — this includes
+  basic diagnostic data (device model, OS version, and what the app was doing when it crashed), but
+  not the content of your restrictions or usage data. We do <strong>not</strong> use general
+  analytics tracking (Firebase Analytics collection is explicitly disabled in the app), and we do
+  <strong>not</strong> collect or transmit an advertising identifier from any device. ScrollGuard
+  has no ads and no ad SDK.</p>
+
+  <h2>6. Who we share information with</h2>
+  <p>We don't sell your data or share it with advertisers. The only outside party involved is
+  <strong>Google Firebase</strong>, which provides the authentication, database, and crash-reporting
+  infrastructure this app runs on, acting as our service provider. No other third party has access
+  to ScrollGuard's data.</p>
+
+  <h2>7. How long we keep information, and how to delete it</h2>
+  <p>Parental Control data is kept for as long as the pairing/account exists. When a parent
+  unpairs from a child device, or deletes their account, we delete the family relationship, the
+  restriction settings, the usage data, and the pairing code associated with it.</p>
+  <div class="callout">
+    <strong>You can delete your account and its data any time</strong> — in the app, go to
+    <em>Parental Control → Delete My Account</em>, or use our
+    <a href="/delete-account.html">external deletion request page</a> if you can't access the app.
+    See that page for exactly what gets deleted.
+  </div>
+  <p>The Focus Timer's local data (usage history, app selections) is stored only on your device and
+  is removed if you clear the app's data or uninstall it — we have no copy of it to delete on our
+  end, because it was never sent to us.</p>
+
+  <h2>8. Children's privacy</h2>
+  <p>ScrollGuard's Parental Control feature is designed to be set up and controlled by a parent or
+  guardian, not by the child. The child's device does not create an account, does not provide
+  contact information, and is not asked to consent to anything — every restriction and every
+  decision comes from the parent's device. If you are a parent or guardian and have questions about
+  what information exists about your child's paired device, or want it removed, contact us using
+  the information in Section 10 or use the account deletion options in Section 7.</p>
+
+  <h2>9. Security</h2>
+  <p>Data is stored in Google Cloud Firestore, protected by security rules that restrict access
+  to only the parent and child devices belonging to a given family pairing — no other user of the
+  app can read or write another family's data. Pairing codes are single-use, expire after five
+  minutes, and cannot be listed or searched by anyone. We test these protections with an automated
+  test suite covering both legitimate access and specific attempted misuse scenarios.</p>
+
+  <h2>10. Contact us</h2>
+  <p>Questions about this policy or your data: <a href="mailto:scrollguardd@gmail.com">scrollguardd@gmail.com</a></p>
+
+  <h2>11. Changes to this policy</h2>
+  <p>If we make material changes to how ScrollGuard handles your information, we'll update the
+  "Last updated" date above and, where appropriate, notify users in the app.</p>
+</body>
+</html>

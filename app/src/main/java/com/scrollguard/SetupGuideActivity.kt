@@ -31,6 +31,12 @@ class SetupGuideActivity : AppCompatActivity() {
         private const val PREFS = "sg_setup"
         private const val KEY_HAS_SEEN_GUIDE = "has_seen_setup_guide"
         private const val KEY_REQUESTED_NOTIF_PERMISSION = "requested_notif_permission"
+        private const val KEY_XIAOMI_AUTOSTART_ACKNOWLEDGED = "xiaomi_autostart_acknowledged"
+
+        /** Xiaomi ships the same HyperOS/MIUI background-management stack under several brand
+         *  names (Xiaomi, Redmi, POCO) — all report one of these in Build.MANUFACTURER. */
+        private fun isXiaomiFamilyDevice(): Boolean =
+            Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")
 
         /** Whether the guide has ever been shown — used by MainActivity to decide whether to
          *  auto-launch it, so a returning user is never forced back through it repeatedly. */
@@ -49,6 +55,7 @@ class SetupGuideActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySetupGuideBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         binding.cardNotifications.visibility =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) View.VISIBLE else View.GONE
@@ -62,12 +69,13 @@ class SetupGuideActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnAccessibilityAction.setOnClickListener { openAccessibilitySettings() }
-        binding.btnAccessibilityInfo.setOnClickListener {
-            showInfoDialog(R.string.setup_step_accessibility_title, R.string.setup_step_accessibility_why) {
-                openAccessibilitySettings()
-            }
-        }
+        // Both the primary action button AND the (i) info icon show the same disclosure dialog
+        // before routing to system settings. Previously only the info icon did — the primary
+        // button (the one most users actually tap) went straight to Settings with no in-app
+        // disclosure at all, which doesn't satisfy an affirmative-consent requirement that's
+        // supposed to sit in the way of granting the permission, not be an easy-to-skip aside.
+        binding.btnAccessibilityAction.setOnClickListener { showAccessibilityDisclosure() }
+        binding.btnAccessibilityInfo.setOnClickListener { showAccessibilityDisclosure() }
 
         binding.btnOverlayAction.setOnClickListener { openOverlaySettings() }
         binding.btnOverlayInfo.setOnClickListener {
@@ -80,6 +88,14 @@ class SetupGuideActivity : AppCompatActivity() {
         binding.btnBatteryInfo.setOnClickListener {
             showInfoDialog(R.string.setup_step_battery_title, R.string.setup_step_battery_why) {
                 requestIgnoreBatteryOptimizations()
+            }
+        }
+
+        binding.cardXiaomiAutostart.visibility = if (isXiaomiFamilyDevice()) View.VISIBLE else View.GONE
+        binding.btnXiaomiAutostartAction.setOnClickListener { openXiaomiAutostartSettings() }
+        binding.btnXiaomiAutostartInfo.setOnClickListener {
+            showInfoDialog(R.string.setup_step_xiaomi_autostart_title, R.string.setup_step_xiaomi_autostart_why) {
+                openXiaomiAutostartSettings()
             }
         }
 
@@ -114,7 +130,7 @@ class SetupGuideActivity : AppCompatActivity() {
      * no warning that nothing would actually work yet.
      */
     private fun confirmContinue() {
-        if (AccessibilityUtils.isBlockerServiceEnabled(this)) {
+        if (AccessibilityUtils.isProtectionActive(this)) {
             finish()
         } else {
             AlertDialog.Builder(this)
@@ -126,8 +142,56 @@ class SetupGuideActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * The disclosure body is chosen from the current [AccessibilityUtils.ProtectionState] rather
+     * than always showing the same static text — a service that was enabled and stopped needs
+     * "turn it off and back on" guidance, not the same first-time explanation shown to someone
+     * who's never touched the setting. See the accessibility investigation notes for why Android
+     * exposes no public API to tell "never enabled" apart from "blocked by Restricted Settings" —
+     * both look identical, so [AccessibilityUtils.ProtectionState.DISABLED_MAY_BE_RESTRICTED]
+     * uses install-source as a best-effort, non-definitive proxy and the copy reflects that.
+     */
+    private fun showAccessibilityDisclosure() {
+        val bodyRes = when (AccessibilityUtils.getProtectionState(this)) {
+            AccessibilityUtils.ProtectionState.ACTIVE,
+            AccessibilityUtils.ProtectionState.DISABLED -> R.string.setup_step_accessibility_why
+            AccessibilityUtils.ProtectionState.DISABLED_MAY_BE_RESTRICTED ->
+                R.string.setup_step_accessibility_why_may_be_restricted
+            AccessibilityUtils.ProtectionState.ENABLED_BUT_NOT_RUNNING ->
+                R.string.setup_step_accessibility_why_stopped
+        }
+        showInfoDialog(R.string.setup_step_accessibility_title, bodyRes) {
+            openAccessibilitySettings()
+        }
+    }
+
     private fun openAccessibilitySettings() {
         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    /**
+     * MIUI/HyperOS's Autostart manager has no public Android API or documented Settings action —
+     * this component name is the same undocumented-but-widely-relied-on one many third-party
+     * apps use, and it can legitimately not exist on a given HyperOS version. Falling back to
+     * this app's own App Info screen (always real) rather than failing silently or crashing:
+     * from there the user can generally still find Autostart under Battery saver / permissions,
+     * even if this direct shortcut doesn't land exactly on it.
+     */
+    private fun openXiaomiAutostartSettings() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_XIAOMI_AUTOSTART_ACKNOWLEDGED, true).apply()
+        val direct = Intent().apply {
+            component = android.content.ComponentName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.autostart.AutoStartManagementActivity"
+            )
+        }
+        try {
+            startActivity(direct)
+        } catch (e: Exception) {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
+        }
+        refreshStatus()
     }
 
     private fun openOverlaySettings() {
@@ -203,14 +267,24 @@ class SetupGuideActivity : AppCompatActivity() {
             doneText = getString(R.string.setup_step_done)
         )
 
-        val accessibilityOk = AccessibilityUtils.isBlockerServiceEnabled(this)
+        // The checkmark below must never appear unless the service is genuinely enabled AND
+        // currently connected — a system setting reading "on" is not sufficient proof (see
+        // AccessibilityUtils.ProtectionState doc). The one-line hint is state-specific so a user
+        // stuck on Restricted Settings, or whose previously-working service has stopped, isn't
+        // shown the same generic "Action needed" as someone who's simply never opened Settings.
+        val protectionState = AccessibilityUtils.getProtectionState(this)
+        val accessibilityActive = protectionState == AccessibilityUtils.ProtectionState.ACTIVE
+        val accessibilityHint = when (protectionState) {
+            AccessibilityUtils.ProtectionState.ACTIVE -> null
+            AccessibilityUtils.ProtectionState.DISABLED -> getString(R.string.setup_step_accessibility_short)
+            AccessibilityUtils.ProtectionState.DISABLED_MAY_BE_RESTRICTED ->
+                getString(R.string.setup_step_accessibility_short_may_be_restricted)
+            AccessibilityUtils.ProtectionState.ENABLED_BUT_NOT_RUNNING ->
+                getString(R.string.setup_step_accessibility_short_stopped)
+        }
         setRowState(
-            binding.tvAccessibilityCheck, binding.tvAccessibilityStatus, binding.btnAccessibilityAction, accessibilityOk,
-            // This is the step users most often get stuck on, and its most useful guidance (the
-            // "Restricted Setting" workaround) previously lived entirely behind the (i) icon,
-            // easy to miss — show a short, one-line hint by default instead of a bare
-            // "Action needed", without duplicating the full explanation the icon still opens.
-            actionNeededText = getString(R.string.setup_step_accessibility_short)
+            binding.tvAccessibilityCheck, binding.tvAccessibilityStatus, binding.btnAccessibilityAction, accessibilityActive,
+            actionNeededText = accessibilityHint
         )
 
         val overlayOk = Settings.canDrawOverlays(this)
@@ -220,12 +294,25 @@ class SetupGuideActivity : AppCompatActivity() {
         val batteryOk = pm.isIgnoringBatteryOptimizations(packageName)
         setRowState(binding.tvBatteryCheck, binding.tvBatteryStatus, binding.btnBatteryAction, batteryOk)
 
+        if (isXiaomiFamilyDevice()) {
+            // Android exposes no API to read MIUI/HyperOS's Autostart state — this can never be
+            // a real ✓, only "the user has been shown where to check." Don't claim more than
+            // that (see Issue #5's "don't silently claim protection is active when it isn't").
+            val acknowledged = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_XIAOMI_AUTOSTART_ACKNOWLEDGED, false)
+            binding.tvXiaomiAutostartStatus.text = if (acknowledged) {
+                getString(R.string.setup_step_xiaomi_autostart_acknowledged)
+            } else {
+                getString(R.string.setup_step_xiaomi_autostart_short)
+            }
+        }
+
         val notifOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         setRowState(binding.tvNotificationsCheck, binding.tvNotificationsStatus, binding.btnNotificationsAction, notifOk)
 
         binding.tvAllDone.visibility =
-            if (appsChosen && accessibilityOk && overlayOk && batteryOk && notifOk) View.VISIBLE else View.GONE
+            if (appsChosen && accessibilityActive && overlayOk && batteryOk && notifOk) View.VISIBLE else View.GONE
     }
 
     private fun setRowState(

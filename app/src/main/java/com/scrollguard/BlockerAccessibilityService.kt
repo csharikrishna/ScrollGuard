@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -12,7 +13,10 @@ import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
+import com.google.firebase.firestore.ListenerRegistration
 import com.scrollguard.data.ScrollGuardDatabase
+import com.scrollguard.parental.SyncEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +38,20 @@ class BlockerAccessibilityService : AccessibilityService() {
 
         /** The 1-second tick interval for parental time accounting (ms). */
         private const val PARENTAL_TICK_INTERVAL_MS = 1_000L
+
+        /**
+         * True only between a real `onServiceConnected()` and the matching `onUnbind()`/
+         * `onDestroy()` in *this* process. This is the runtime half of [AccessibilityUtils]'s
+         * protection-state check (see its doc for why config state alone isn't enough).
+         *
+         * Deliberately in-memory only, never persisted: a fresh process (after an OEM kill, a
+         * crash, or a reboot) always starts with this false until the service instance genuinely
+         * reconnects, so it can never report a stale "true" for a service that is no longer
+         * actually running — which a SharedPreferences-backed flag could.
+         */
+        @Volatile
+        var isRuntimeConnected: Boolean = false
+            private set
     }
 
     private var lastLaunch = 0L
@@ -48,6 +66,9 @@ class BlockerAccessibilityService : AccessibilityService() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main.immediate + serviceJob)
     private var tickCollectJob: Job? = null
+
+    /** Live Firestore listeners for parental config changes (see [SyncEngine.attachLiveConfigListener]) — attached only once this device is confirmed to be a paired child, and removed in [onDestroy]. */
+    private var liveConfigListeners: List<ListenerRegistration> = emptyList()
 
     // ── Parental time accounting ────────────────────────────────────────
 
@@ -73,6 +94,11 @@ class BlockerAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        isRuntimeConnected = true
+        // Immediate, event-driven truth rather than waiting for TimerService's next polled
+        // health check (up to 5s away) — see AccessibilityUtils' doc on why runtime state must
+        // win over a merely-polled config check.
+        TimerState.accessibilityHealthy = true
 
         // The device's home/launcher package must never be blockable (spec Issue I) — if it
         // were, a restricted launcher would make the home screen itself unreachable, with no
@@ -86,12 +112,23 @@ class BlockerAccessibilityService : AccessibilityService() {
             Log.e(TAG, "Failed to resolve launcher package", e)
         }
 
-        // Hydrate parental control state from Room before enforcing.
+        // Hydrate parental control state from Room before enforcing, then attach a live config
+        // listener if this device is a paired child — closes the up-to-15-minute SyncWorker gap
+        // for as long as this service (effectively always) stays alive. See
+        // SyncEngine.attachLiveConfigListener for why this isn't FCM.
         serviceScope.launch(Dispatchers.IO) {
             try {
                 val dao = ScrollGuardDatabase.getDatabase(applicationContext).parentalDao()
                 ParentalControlState.hydrateFromRoom(applicationContext, dao)
                 Log.i(TAG, "Parental state hydrated from Room on service connect")
+
+                if (ParentalControlState.isPaired && ParentalControlState.role == "child") {
+                    val fid = ParentalControlState.familyId
+                    if (fid != null) {
+                        liveConfigListeners = SyncEngine(applicationContext)
+                            .attachLiveConfigListener(fid, serviceScope)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to hydrate parental state from Room", e)
             }
@@ -106,11 +143,26 @@ class BlockerAccessibilityService : AccessibilityService() {
         parentalTickHandler.postDelayed(parentalTickRunnable, PARENTAL_TICK_INTERVAL_MS)
     }
 
+    /**
+     * Called by the system as soon as it decides to unbind this service — reliably fires the
+     * moment the user turns the Accessibility toggle off, ahead of (and more promptly than)
+     * [onDestroy]. This is the immediate, event-driven "protection just stopped" signal Part 12
+     * of the investigation calls for, rather than waiting on the next polled health check.
+     */
+    override fun onUnbind(intent: Intent?): Boolean {
+        isRuntimeConnected = false
+        TimerState.accessibilityHealthy = false
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
+        isRuntimeConnected = false
+        TimerState.accessibilityHealthy = false
         parentalTickHandler.removeCallbacks(parentalTickRunnable)
         // Flush any pending parental time deltas to Room before dying.
         flushPendingDeltasToRoom()
         hidePipBlockOverlay()
+        liveConfigListeners.forEach { it.remove() }
         serviceJob.cancel()
         super.onDestroy()
     }
@@ -124,6 +176,15 @@ class BlockerAccessibilityService : AccessibilityService() {
     // ── Blocking logic (dual engine) ────────────────────────────────────
 
     private fun checkAndBlockCurrentApp() {
+        val rootNode = rootInActiveWindow
+        val activePkg = rootNode?.packageName?.toString()
+
+        // Update the shared foreground-package signal before ticking the focus-timer engine:
+        // TimerState's ALLOWED phase only depletes its usable-time budget while a monitored
+        // app is actually in front (see TimerState.tick/catchUp), so it needs this pass's
+        // foreground package before, not after, ticking.
+        TimerState.currentForegroundPackage = activePkg
+
         // Self-heal the phase from elapsed real time on every check, rather than trusting
         // whatever TimerState.phase currently holds. TimerService's 1-second Handler loop is
         // the normal way phase advances, but Android does not guarantee that loop keeps firing
@@ -131,9 +192,6 @@ class BlockerAccessibilityService : AccessibilityService() {
         // far more likely to survive such stalls, so it must be able to notice a phase is stale
         // and catch up before making a block/allow decision, instead of acting on a frozen value.
         TimerState.tick(applicationContext)
-
-        val rootNode = rootInActiveWindow
-        val activePkg = rootNode?.packageName?.toString()
 
         // Update which package is the active foreground for parental tracking.
         updateActiveParentalPackage(activePkg)
@@ -147,15 +205,59 @@ class BlockerAccessibilityService : AccessibilityService() {
         // interactive. requiresOverlayBackstop tracks whether that gap applies this pass.
         var requiresOverlayBackstop = false
 
-        // Engine 1: Focus Timer blocking
+        // The active window's own screen bounds, used by isGenuineMultiWindowMatch below to
+        // tell a real concurrently-visible split-screen pane apart from a background app's
+        // window that the accessibility API still happens to enumerate. See that function's
+        // doc for why this distinction is load-bearing (root-caused from a real device report:
+        // the black, input-swallowing PiP backstop overlay was firing on ordinary single-window
+        // blocks, because the just-blocked app's now-backgrounded window was still showing up
+        // in getWindows() — on some OEM window managers a stopped activity's window is kept
+        // enumerable noticeably longer than on stock AOSP, long enough for the very next
+        // accessibility tick to see it and wrongly treat it as a second, simultaneously-visible
+        // pane).
+        val activeWindowBounds = rootInActiveWindow?.let { root ->
+            Rect().also { root.getBoundsInScreen(it) }
+        }
+
+        // Engine 1: Parental quota blocking — checked FIRST. These two engines used to be fully
+        // independent checks, each free to call triggerBlock() for the same active package.
+        // triggerBlock()'s own duplicate-launch debounce (same package within 500ms) then
+        // silently swallowed whichever engine's call happened to run second — meaning the Focus
+        // Timer engine (checked first in the old code order) always won that race and its
+        // BlockActivity screen (with its Emergency Pass button) displayed instead of the
+        // parental one, regardless of which restriction should actually take precedence. A
+        // parent-set limit must never be maskable by a child's own Focus Timer mechanisms, so
+        // parental blocking now runs first, and parentalHandledActivePkg tells Engine 2 below to
+        // skip the active package if this engine already claimed it this pass.
+        var parentalHandledActivePkg = false
+        if (activePkg != null && ParentalControlState.isAppQuotaExhausted(activePkg)) {
+            triggerBlock(activePkg, BLOCK_MODE_PARENTAL_LIMIT)
+            parentalHandledActivePkg = true
+        } else {
+            // Also check split-screen/PiP windows for parental blocking.
+            for (window in windows) {
+                val windowPkg = window.root?.packageName?.toString()
+                if (windowPkg != null && ParentalControlState.isAppQuotaExhausted(windowPkg) &&
+                    isGenuineMultiWindowMatch(window, activeWindowBounds)
+                ) {
+                    triggerBlock(windowPkg, BLOCK_MODE_PARENTAL_LIMIT)
+                    requiresOverlayBackstop = true
+                    break
+                }
+            }
+        }
+
+        // Engine 2: Focus Timer blocking. Skips the active package if Engine 1 already claimed
+        // it above — see the comment on parentalHandledActivePkg.
         if (TimerState.phase == TimerState.Phase.LOCKED) {
-            if (activePkg != null && TimerState.isAppBlocked(activePkg)) {
+            if (activePkg != null && !parentalHandledActivePkg && TimerState.isAppBlocked(activePkg)) {
                 triggerBlock(activePkg, BLOCK_MODE_FOCUS_TIMER)
-            } else {
-                // FIX #2: Always scan ALL windows (not just when activePkg==null).
+            } else if (!parentalHandledActivePkg) {
                 for (window in windows) {
                     val windowPkg = window.root?.packageName?.toString()
-                    if (windowPkg != null && TimerState.isAppBlocked(windowPkg)) {
+                    if (windowPkg != null && TimerState.isAppBlocked(windowPkg) &&
+                        isGenuineMultiWindowMatch(window, activeWindowBounds)
+                    ) {
                         triggerBlock(windowPkg, BLOCK_MODE_FOCUS_TIMER)
                         requiresOverlayBackstop = true
                         break
@@ -164,22 +266,34 @@ class BlockerAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Engine 2: Parental quota blocking
-        if (activePkg != null && ParentalControlState.isAppQuotaExhausted(activePkg)) {
-            triggerBlock(activePkg, BLOCK_MODE_PARENTAL_LIMIT)
-        } else {
-            // Also check split-screen/PiP windows for parental blocking.
-            for (window in windows) {
-                val windowPkg = window.root?.packageName?.toString()
-                if (windowPkg != null && ParentalControlState.isAppQuotaExhausted(windowPkg)) {
-                    triggerBlock(windowPkg, BLOCK_MODE_PARENTAL_LIMIT)
-                    requiresOverlayBackstop = true
-                    break
-                }
-            }
-        }
-
         if (requiresOverlayBackstop) showPipBlockOverlay() else hidePipBlockOverlay()
+    }
+
+    /**
+     * True only if [window] is a genuinely, concurrently-visible second window — real PiP, or
+     * the non-focused pane of a real split-screen layout — as opposed to a background app's
+     * window that getWindows() still happens to report even though nothing of it is actually
+     * on screen. Two ways a window can prove that:
+     *   1. It reports itself as a real PiP window ([AccessibilityWindowInfo.isInPictureInPictureMode]).
+     *   2. Its on-screen bounds don't overlap the active window's bounds at all — which is what
+     *      distinguishes a real side-by-side/stacked split-screen pane (disjoint regions, by
+     *      definition) from a fully-eclipsed background window sitting exactly behind the
+     *      current full-screen foreground window (identical/overlapping bounds).
+     * A background window whose bounds happen to still equal the active window's full-screen
+     * bounds fails both checks and is correctly ignored, rather than triggering a block (and the
+     * opaque, touch-swallowing overlay) for an app that isn't actually visible to the user.
+     */
+    private fun isGenuineMultiWindowMatch(window: AccessibilityWindowInfo, activeBounds: Rect?): Boolean {
+        if (window.isInPictureInPictureMode) return true
+        if (activeBounds == null) return true // no active-window bounds to compare against
+        val windowBounds = Rect()
+        window.getBoundsInScreen(windowBounds)
+        // A degenerate (zero-area) rect isn't actually visible anywhere on screen, so it can't
+        // be a genuine split-screen pane either — without this check it would trivially pass
+        // the "doesn't overlap" test below and reintroduce the false-positive this function
+        // exists to prevent.
+        if (windowBounds.isEmpty) return false
+        return !Rect.intersects(windowBounds, activeBounds)
     }
 
     // ── PiP/split-screen overlay backstop ───────────────────────────────
@@ -252,7 +366,7 @@ class BlockerAccessibilityService : AccessibilityService() {
         // Check for day boundary reset before counting.
         if (ParentalControlState.resetDayIfNeeded(applicationContext)) {
             // Day changed — reset pending deltas and persist the reset to Room.
-            pendingDeltas.clear()
+            synchronized(pendingDeltas) { pendingDeltas.clear() }
             serviceScope.launch(Dispatchers.IO) {
                 try {
                     val dao = ScrollGuardDatabase.getDatabase(applicationContext).parentalDao()
@@ -270,8 +384,14 @@ class BlockerAccessibilityService : AccessibilityService() {
         // Increment in memory (< 1ms).
         ParentalControlState.incrementConsumed(pkg)
 
-        // Accumulate delta for batch Room persist.
-        pendingDeltas[pkg] = (pendingDeltas[pkg] ?: 0L) + 1L
+        // Accumulate delta for batch Room persist. Synchronized because flushPendingDeltasToRoom's
+        // failure-retry path (below) mutates this same map from a background IO coroutine —
+        // without this, that was the only side taking the lock, which protects nothing: a plain
+        // HashMap mutated concurrently from two threads with only one side synchronized is just
+        // as unsafe as neither side being synchronized, and could throw or corrupt the map.
+        synchronized(pendingDeltas) {
+            pendingDeltas[pkg] = (pendingDeltas[pkg] ?: 0L) + 1L
+        }
 
         // Batch persist to Room every ~15 seconds.
         val now = SystemClock.elapsedRealtime()

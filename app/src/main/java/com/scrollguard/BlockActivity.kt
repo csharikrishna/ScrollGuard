@@ -1,6 +1,5 @@
 package com.scrollguard
 
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -10,13 +9,14 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.scrollguard.databinding.ActivityBlockBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class BlockActivity : AppCompatActivity() {
 
@@ -45,7 +45,7 @@ class BlockActivity : AppCompatActivity() {
         binding = ActivityBlockBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        setupImmersiveMode()
+        applyEdgeToEdge(binding.root)
         setupShowOverLockScreen()
         blockedPackage = intent.getStringExtra(EXTRA_BLOCKED_PACKAGE)
         blockMode = intent.getStringExtra(EXTRA_BLOCK_MODE)
@@ -78,7 +78,12 @@ class BlockActivity : AppCompatActivity() {
             ?: BlockerAccessibilityService.BLOCK_MODE_FOCUS_TIMER
 
         if (blockMode == BlockerAccessibilityService.BLOCK_MODE_PARENTAL_LIMIT) {
-            setupParentalLimitMode()
+            // Not setupParentalLimitMode() again — onNewIntent means the accessibility service
+            // re-affirmed an already-showing block (it fires this on nearly every tick/event
+            // while the exhausted app stays foreground), not a new block "session". Calling the
+            // full setup here used to re-log a duplicate BlockEvent and re-register the time
+            // request UI/listener every single time.
+            refreshParentalLimitUI()
         } else {
             TimerState.load(applicationContext)
             updateFocusTimerUI()
@@ -206,7 +211,10 @@ class BlockActivity : AppCompatActivity() {
         binding.tvMessage.text = getString(R.string.parental_limit_reached)
         binding.tvMessage.visibility = View.VISIBLE
 
-        // Log block event for analytics
+        // Log block event for analytics. Only here, in the one-time setup — NOT repeated for
+        // every onNewIntent re-affirmation of this same still-showing screen (see onNewIntent's
+        // refreshParentalLimitUI), which is what previously flooded BlockEvent with duplicates
+        // for a single continuous block "session."
         blockedPackage?.let { pkg ->
             lifecycleScope.launch(Dispatchers.IO) {
                 val appName = ParentalControlState.getRestriction(pkg)?.appName ?: pkg
@@ -215,6 +223,24 @@ class BlockActivity : AppCompatActivity() {
             }
         }
 
+        updateParentalLimitTimerUI()
+
+        // Show parental guidance message
+        binding.tvSubMessage.visibility = View.VISIBLE
+        binding.tvSubMessage.text = getString(R.string.parental_ask_parent)
+        binding.tvSubMessage.isClickable = false
+
+        setupParentalTimeRequest()
+        startParentalUnblockWatcher()
+    }
+
+    /** Re-affirmation path for onNewIntent — same screen, not a new session, so it only refreshes
+     *  the displayed consumed/allowance numbers without repeating the one-time setup above. */
+    private fun refreshParentalLimitUI() {
+        updateParentalLimitTimerUI()
+    }
+
+    private fun updateParentalLimitTimerUI() {
         // Show time spent today instead of countdown timer.
         val snap = blockedPackage?.let { ParentalControlState.getRestriction(it) }
         if (snap != null) {
@@ -231,31 +257,66 @@ class BlockActivity : AppCompatActivity() {
             binding.tvTimer.text = getString(R.string.parental_limit_reached)
             binding.progressTimer.progress = 0
         }
-
-        // Show parental guidance message
-        binding.tvSubMessage.visibility = View.VISIBLE
-        binding.tvSubMessage.text = getString(R.string.parental_ask_parent)
-        binding.tvSubMessage.isClickable = false
-
-        setupParentalTimeRequest()
-
-        // Watch for parental config changes (parent grants more time).
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                TimerState.tickSignal.collect {
-                    val pkg = blockedPackage ?: return@collect
-                    if (!ParentalControlState.isAppQuotaExhausted(pkg)) {
-                        finish() // Parent granted more time — dismiss block screen.
-                    }
-                }
-            }
-        }
     }
 
+    /**
+     * Watches for the parent granting more time, independent of TimerState.tickSignal — that
+     * signal is only published while a *personal* Focus Timer session's TimerService is alive,
+     * so a child under Parental Control alone (no personal session running) previously had no
+     * live path to auto-dismiss this screen at all; only backgrounding and reopening the app
+     * would re-check (via onResume) and let them back in. This polls local ParentalControlState
+     * directly — cheap, no network of its own, since the live Firestore listener (or SyncWorker)
+     * is what keeps that state current.
+     */
+    private fun startParentalUnblockWatcher() {
+        val poll = object : Runnable {
+            override fun run() {
+                val pkg = blockedPackage
+                if (pkg != null && !ParentalControlState.isAppQuotaExhausted(pkg)) {
+                    finish()
+                    return
+                }
+                handler.postDelayed(this, 1_000L)
+            }
+        }
+        handler.postDelayed(poll, 1_000L)
+    }
+
+    /**
+     * Handles the "ask for more time" flow. Recovers an already-pending request for this exact
+     * package instead of always assuming there is none — without this, rotating the device (which
+     * destroys/recreates this Activity; no configChanges is declared) reset the button back to
+     * enabled, letting a child spam unlimited duplicate requests, AND silently dropped the live
+     * listener for whichever request was already pending, so if the parent approved that original
+     * request the screen would never know and never unblock.
+     */
     private fun setupParentalTimeRequest() {
         val fid = ParentalControlState.familyId ?: return
         val pkg = blockedPackage ?: return
         val appName = ParentalControlState.getRestriction(pkg)?.appName ?: pkg
+        val requestsRef = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            .collection("families").document(fid).collection("requests")
+
+        binding.btnRequestTime.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            val existing = try {
+                requestsRef.whereEqualTo("type", "TIME")
+                    .whereEqualTo("packageName", pkg)
+                    .whereEqualTo("status", "PENDING")
+                    .get().await().documents.firstOrNull()
+            } catch (e: Exception) {
+                null
+            }
+            withContext(Dispatchers.Main) {
+                if (existing != null) {
+                    binding.tvOverrideStatus.visibility = View.VISIBLE
+                    binding.tvOverrideStatus.text = getString(R.string.request_sent_waiting)
+                    attachTimeRequestListener(existing.reference)
+                } else {
+                    binding.btnRequestTime.isEnabled = true
+                }
+            }
+        }
 
         binding.btnRequestTime.setOnClickListener {
             binding.btnRequestTime.isEnabled = false
@@ -264,52 +325,50 @@ class BlockActivity : AppCompatActivity() {
 
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
-                    val firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                    val reqRef = firestore.collection("families").document(fid)
-                        .collection("requests").document()
-
+                    val reqRef = requestsRef.document()
                     reqRef.set(mapOf(
                         "id" to reqRef.id,
+                        "type" to "TIME",
                         "packageName" to pkg,
                         "appName" to appName,
                         "minutes" to 10,
                         "status" to "PENDING",
                         "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
-                    ))
-
-                    // Listen for parent approval in real-time
-                    timeRequestListener?.remove()
-                    timeRequestListener = reqRef.addSnapshotListener { snapshot, _ ->
-                        if (snapshot == null) return@addSnapshotListener
-                        val status = snapshot.getString("status")
-                        if (status == "APPROVED") {
-                            Toast.makeText(this@BlockActivity, getString(R.string.request_approved), Toast.LENGTH_SHORT).show()
-                            finish()
-                        } else if (status == "DENIED") {
-                            binding.tvOverrideStatus.text = getString(R.string.request_denied)
-                            binding.btnRequestTime.isEnabled = true
-                        }
-                    }
+                    )).await()
+                    withContext(Dispatchers.Main) { attachTimeRequestListener(reqRef) }
                 } catch (e: Exception) {
-                    binding.tvOverrideStatus.text = getString(R.string.error_request_send_failed)
+                    withContext(Dispatchers.Main) {
+                        binding.tvOverrideStatus.text = getString(R.string.error_request_send_failed)
+                        binding.btnRequestTime.isEnabled = true
+                    }
+                }
+            }
+        }
+    }
+
+    private fun attachTimeRequestListener(reqRef: com.google.firebase.firestore.DocumentReference) {
+        timeRequestListener?.remove()
+        timeRequestListener = reqRef.addSnapshotListener { snapshot, _ ->
+            if (snapshot == null || !snapshot.exists()) return@addSnapshotListener
+            when (snapshot.getString("status")) {
+                "APPROVED" -> {
+                    Toast.makeText(this@BlockActivity, getString(R.string.request_approved), Toast.LENGTH_SHORT).show()
+                    // Resolved — delete rather than leaving it to accumulate forever (the parent
+                    // dashboard only ever queries status == PENDING, so this was pure orphaned
+                    // storage, not a functional bug, but it grows without bound otherwise).
+                    snapshot.reference.delete()
+                    finish()
+                }
+                "DENIED" -> {
+                    binding.tvOverrideStatus.text = getString(R.string.request_denied)
                     binding.btnRequestTime.isEnabled = true
+                    snapshot.reference.delete()
                 }
             }
         }
     }
 
     // ── Common setup ────────────────────────────────────────────────────
-
-    private fun setupImmersiveMode() {
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
-            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
-        }
-    }
 
     /** Ensures the block screen actually appears over the lock screen and wakes the display. */
     private fun setupShowOverLockScreen() {

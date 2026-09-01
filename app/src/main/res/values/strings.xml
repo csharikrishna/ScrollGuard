@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">ScrollGuard</string>
     <string name="admin_description">This app uses device administrator permissions to prevent unauthorized uninstallation during focus sessions.</string>
-    <string name="accessibility_description">ScrollGuard uses accessibility services to monitor when you open specific apps and block them during your focus session.</string>
+    <string name="accessibility_description">ScrollGuard uses accessibility services to detect which app is currently open, so it can block selected apps during your focus sessions and enforce parent-set daily time limits.</string>
 
     <!-- Main Dashboard -->
     <string name="ready">READY</string>
@@ -9,7 +9,7 @@
     <string name="enjoy_freely">Enjoy freely - Tracking active</string>
     <string name="locked_put_phone_down">Locked - Put your phone down!</string>
     <string name="quick_window">Quick window - Use wisely</string>
-    <string name="accessibility_disabled_warning">Blocking is paused — Accessibility service is off. Tap Setup below.</string>
+    <string name="accessibility_disabled_warning">Protection is NOT active — Accessibility service isn\'t working. Tap Setup below.</string>
     <string name="start_focus_session">START FOCUS SESSION</string>
     <string name="end_session_pin">End Session (Verification Required)</string>
     <string name="focus_configuration">FOCUS CONFIGURATION</string>
@@ -153,6 +153,7 @@
     <string name="parent_dashboard_title">Parent Dashboard</string>
     <string name="child_device">Child Device</string>
     <string name="child_connected">Connected</string>
+    <string name="child_connected_accessibility_disabled">Connected — Accessibility disabled, restrictions may not be enforced ⚠</string>
     <string name="child_last_seen_format">Last seen: %1$s</string>
     <string name="child_offline">Offline</string>
     <string name="restrictions_enabled">Restrictions ON</string>
@@ -169,6 +170,15 @@
     <string name="allowance_format">%1$d / %2$d min</string>
     <string name="unpair">Unpair</string>
     <string name="unpair_confirm">Are you sure you want to unpair this device? The child will no longer be restricted.</string>
+    <string name="delete_my_account">Delete My Account</string>
+    <string name="delete_account_confirm_message">This permanently deletes your parent account and, if paired, your child\'s restriction data. This cannot be undone.</string>
+    <string name="delete_account_reauth_title">Confirm Your Password</string>
+    <string name="delete_account_reauth_message">For your security, please re-enter your password to permanently delete your account.</string>
+    <string name="delete_account_success">Your account has been deleted.</string>
+    <string name="request_unpair">Request to Unpair</string>
+    <string name="request_unpair_confirm">This asks the parent to approve removing restrictions from this device. It won\'t take effect until they approve.</string>
+    <string name="unpair_request_sent">Request sent. Waiting for parent approval.</string>
+    <string name="unpair_request_denied">Parent denied the unpair request.</string>
     <string name="delete_restriction_confirm">Remove the restriction on %1$s? It will no longer have a time limit.</string>
 
     <!-- Parental Control: App Picker -->
@@ -204,6 +214,7 @@
     <string name="approve">Approve</string>
     <string name="deny">Deny</string>
     <string name="child_requested_time_format">%1$s requested +%2$d min for %3$s</string>
+    <string name="child_requested_unpair_format">%1$s wants to unpair this device</string>
 
     <!-- Advanced Analytics -->
     <string name="top_blocked_apps">MOST BLOCKED APPS (WEEKLY)</string>
@@ -238,13 +249,21 @@
     <string name="setup_step_apps_why">Pick which apps ScrollGuard should block once your locked time begins. You can change this anytime.</string>
     <string name="setup_step_accessibility_title">Accessibility access</string>
     <string name="setup_step_accessibility_short">Needed so ScrollGuard can detect when you open a restricted app.</string>
-    <string name="setup_step_accessibility_why">This is what lets ScrollGuard notice when you open a restricted app so it can block it. Without it, ScrollGuard can\'t detect app launches at all.\n\nTap \"Open Settings\", find \"ScrollGuard Blocker\" in the list, and turn it on. Then come back here — we\'ll check automatically.\n\nIf you see \"Restricted Setting\" instead of a switch: open ScrollGuard\'s App Info, tap the three dots in the top right, choose \"Allow restricted settings\", then try again.\n\nIf it\'s already on but not working, try turning it off and back on again.</string>
+    <string name="setup_step_accessibility_short_may_be_restricted">Not available yet — Android may be restricting this. Tap for details.</string>
+    <string name="setup_step_accessibility_short_stopped">Protection is NOT active — it was working, but has stopped.</string>
+    <string name="setup_step_accessibility_why">This is what lets ScrollGuard notice when you open a restricted app so it can block it. Without it, ScrollGuard can\'t detect app launches at all.\n\nWhat this actually accesses: only the name of the app currently on screen. ScrollGuard never reads what\'s inside that app, never takes screenshots, and never sends this information anywhere — the decision to block happens entirely on your device.\n\nTap \"Open Settings\", find \"ScrollGuard Blocker\" in the list, and turn it on. Then come back here — we\'ll check automatically and only show it as active once it genuinely is.</string>
+    <string name="setup_step_accessibility_why_may_be_restricted">Protection is NOT active.\n\nScrollGuard doesn\'t appear as enabled in Accessibility settings. This can happen when an app is installed from outside the Play Store (for example, via ADB or a downloaded APK) — Android calls this Restricted Settings, and it\'s a deliberate security feature, not a bug. ScrollGuard cannot and will not try to bypass it.\n\nTap \"Open Settings\" and look for ScrollGuard Blocker under Accessibility. If Android reports the setting as restricted, follow whatever instructions Android itself offers there for allowing it — the exact screen and wording vary by device and Android version, so ScrollGuard can\'t point to one specific menu. Installing ScrollGuard from the Play Store avoids this restriction entirely.\n\nScrollGuard will automatically update this screen once the service is actually running. Until then, protection is NOT active.</string>
+    <string name="setup_step_accessibility_why_stopped">Protection is NOT active.\n\nScrollGuard\'s Accessibility service was working before but isn\'t connected right now — this can happen if the system stopped it to save battery, if it crashed, or after a reboot.\n\nTap \"Open Settings\", turn ScrollGuard Blocker off and back on, then come back here — ScrollGuard will verify it reconnected before showing protection as active again.</string>
     <string name="setup_continue_without_accessibility_warning">Accessibility access isn\'t on yet, so ScrollGuard can\'t detect or block restricted apps. Continue anyway?</string>
     <string name="setup_continue_anyway">Continue Anyway</string>
     <string name="setup_step_overlay_title">Display over other apps</string>
     <string name="setup_step_overlay_why">The lock screen ScrollGuard shows has to appear on top of the app you\'re trying to use — this permission is what allows that.\n\nTap \"Open Settings\" and turn the switch on for ScrollGuard, then come back here.</string>
     <string name="setup_step_battery_title">Ignore battery optimization</string>
     <string name="setup_step_battery_why">Android aggressively pauses background apps to save power, which can stop ScrollGuard\'s timer from running while your screen is off. Exempting ScrollGuard keeps it working reliably.\n\nTap \"Open Settings\" and allow ScrollGuard to run in the background, then come back here.</string>
+    <string name="setup_step_xiaomi_autostart_title">Xiaomi Autostart</string>
+    <string name="setup_step_xiaomi_autostart_short">Your phone may stop ScrollGuard in the background unless Autostart is on.</string>
+    <string name="setup_step_xiaomi_autostart_why">Xiaomi phones have their own extra background-management setting, separate from Android\'s own battery settings, that can silently stop ScrollGuard from running in the background — which would let blocking quietly stop working without any warning.\n\nTo keep ScrollGuard protecting your apps when you\'re not actively using it, Xiaomi requires this setting.\n\nTap \"Open Settings\", find ScrollGuard in the Autostart list, and turn it on. ScrollGuard can\'t check whether this is actually on from inside the app — Android doesn\'t allow that — so please confirm it yourself in that list.\n\nWhile you\'re there: also check Xiaomi\'s battery saver setting for ScrollGuard and set it to \"No restrictions\" rather than the default, and make sure \"Close apps after N minutes of background activity\" is off for ScrollGuard specifically.</string>
+    <string name="setup_step_xiaomi_autostart_acknowledged">Opened — please double-check it\'s turned on</string>
     <string name="setup_step_notifications_title">Notifications</string>
     <string name="setup_step_notifications_why">ScrollGuard shows an ongoing notification with your remaining time, and will alert you if blocking ever stops working. Tap \"Allow\" on the prompt.</string>
     <string name="setup_step_done">Done</string>

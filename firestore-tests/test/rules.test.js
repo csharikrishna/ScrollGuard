@@ -212,6 +212,13 @@ describe("pairing/{code}", () => {
     const someoneDb = testEnv.authenticatedContext(OTHER_UID).firestore();
     await assertFails(deleteDoc(doc(someoneDb, `pairing/${CODE}`)));
   });
+
+  it("lets the owning child delete their own still-valid, unclaimed code (regenerate/unpair cleanup)", async () => {
+    await seedFamily({ parentUid: null, childUid: CHILD_UID });
+    await seedPairingCode();
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertSucceeds(deleteDoc(doc(childDb, `pairing/${CODE}`)));
+  });
 });
 
 describe("families/{familyId}", () => {
@@ -309,10 +316,18 @@ describe("families/{familyId}", () => {
     );
   });
 
-  it("lets either the parent or the child delete (unpair) the family doc", async () => {
+  it("lets the parent delete (unpair) the family doc", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    const parentDb = testEnv.authenticatedContext(PARENT_UID).firestore();
+    await assertSucceeds(deleteDoc(doc(parentDb, `families/${FAMILY_ID}`)));
+  });
+
+  it("[fixed hole] denies the child unilaterally deleting the family doc — a child could " +
+     "previously destroy the parent's own record with zero consent; ending pairing now " +
+     "requires a requests/{id} UNPAIR request the parent approves", async () => {
     await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
     const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
-    await assertSucceeds(deleteDoc(doc(childDb, `families/${FAMILY_ID}`)));
+    await assertFails(deleteDoc(doc(childDb, `families/${FAMILY_ID}`)));
   });
 
   it("denies an unrelated user deleting a family doc", async () => {
@@ -342,6 +357,18 @@ describe("families/{familyId}/config/current (parent-owned, child bootstraps onc
       setDoc(doc(childDb, `families/${FAMILY_ID}/config/current`), {
         enabled: true,
         configVersion: 0,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it("[fixed hole] denies the child bootstrapping the config stub with a forged configVersion", async () => {
+    await seedFamily({ parentUid: null, childUid: CHILD_UID });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertFails(
+      setDoc(doc(childDb, `families/${FAMILY_ID}/config/current`), {
+        enabled: false,
+        configVersion: 999,
         updatedAt: serverTimestamp(),
       })
     );
@@ -440,6 +467,114 @@ describe("families/{familyId}/status/current and catalog/current (child-owned)",
         updatedAt: serverTimestamp(),
       })
     );
+  });
+});
+
+describe("families/{familyId}/requests/{requestId} (child asks, parent decides)", () => {
+  it("lets the child create a PENDING TIME request", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertSucceeds(
+      setDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`), {
+        type: "TIME",
+        packageName: "com.instagram.android",
+        appName: "Instagram",
+        minutes: 10,
+        status: "PENDING",
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it("lets the child create a PENDING UNPAIR request", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertSucceeds(
+      setDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`), {
+        type: "UNPAIR",
+        status: "PENDING",
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it("[fixed hole] denies the child self-forging an already-APPROVED request at creation", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertFails(
+      setDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`), {
+        type: "TIME",
+        packageName: "com.instagram.android",
+        appName: "Instagram",
+        minutes: 10,
+        status: "APPROVED",
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it("denies the child creating a request with an unrecognized type", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertFails(
+      setDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`), {
+        type: "SOMETHING_ELSE",
+        status: "PENDING",
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it("denies the parent creating a request (child-only path)", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    const parentDb = testEnv.authenticatedContext(PARENT_UID).firestore();
+    await assertFails(
+      setDoc(doc(parentDb, `families/${FAMILY_ID}/requests/req1`), {
+        type: "TIME",
+        status: "PENDING",
+        createdAt: serverTimestamp(),
+      })
+    );
+  });
+
+  async function seedRequest({ status = "PENDING", type = "TIME" } = {}) {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `families/${FAMILY_ID}/requests/req1`), {
+        type,
+        status,
+        createdAt: serverTimestamp(),
+      });
+    });
+  }
+
+  it("lets the parent update a request's status; denies the child", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    await seedRequest();
+    const parentDb = testEnv.authenticatedContext(PARENT_UID).firestore();
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertSucceeds(updateDoc(doc(parentDb, `families/${FAMILY_ID}/requests/req1`), { status: "APPROVED" }));
+    await assertFails(updateDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`), { status: "APPROVED" }));
+  });
+
+  it("denies the child deleting their own still-PENDING request", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    await seedRequest({ status: "PENDING" });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertFails(deleteDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`)));
+  });
+
+  it("lets the child delete their own resolved (non-PENDING) request", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    await seedRequest({ status: "DENIED" });
+    const childDb = testEnv.authenticatedContext(CHILD_UID).firestore();
+    await assertSucceeds(deleteDoc(doc(childDb, `families/${FAMILY_ID}/requests/req1`)));
+  });
+
+  it("lets the parent delete a request regardless of status", async () => {
+    await seedFamily({ parentUid: PARENT_UID, childUid: CHILD_UID });
+    await seedRequest({ status: "PENDING" });
+    const parentDb = testEnv.authenticatedContext(PARENT_UID).firestore();
+    await assertSucceeds(deleteDoc(doc(parentDb, `families/${FAMILY_ID}/requests/req1`)));
   });
 });
 

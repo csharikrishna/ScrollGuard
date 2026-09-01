@@ -26,6 +26,7 @@ class BootReceiver : BroadcastReceiver() {
             // FIX #11: Single load here is sufficient. TimerService.onCreate()
             // also calls load() — both are idempotent and safe to run sequentially.
             TimerState.load(context)
+            AccessibilityHealthWorker.schedule(context)
             if (TimerState.isRunning()) {
                 try {
                     // Match C5 fix: explicit "RESUME" action so TimerService.onStartCommand

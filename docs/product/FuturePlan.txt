@@ -1,0 +1,950 @@
+# ScrollGuard — Implement the Parental Control MVP
+
+The existing ScrollGuard Android app has already gone through a production-readiness audit and verification. **Do not break or regress the existing local/offline blocking functionality.**
+
+Now extend the app with a focused **Parental Control MVP**.
+
+The objective is NOT to build a giant parental-control platform.
+
+The objective is:
+
+**Parent Phone → Firebase/Cloud → Child Phone**
+
+with reliable synchronization of app restrictions and time limits.
+
+---
+
+# 1. CORE PRODUCT PRINCIPLE
+
+Keep the app:
+
+* simple
+* primarily offline on the child device
+* usable without mandatory login for existing/basic functionality
+* reliable when connectivity is temporarily unavailable
+* minimal in scope
+* easy for a normal parent to understand
+
+Cloud connectivity is only required for **remote parental control synchronization**.
+
+The child device must NOT depend on an active internet connection every second to enforce restrictions.
+
+Once a restriction is synchronized to the child:
+
+> The child device must continue enforcing the latest known configuration even when temporarily offline.
+
+Do not turn the existing local blocking system into a cloud-dependent system.
+
+---
+
+# 2. DO NOT REGRESS EXISTING FUNCTIONALITY
+
+Before implementing anything:
+
+Understand the current architecture completely.
+
+In particular understand:
+
+* `TimerState`
+* `TimerService`
+* `BlockerAccessibilityService`
+* `BlockActivity`
+* `PinActivity`
+* existing app-selection logic
+* existing analytics
+* existing persistence
+* existing release configuration
+
+The current local blocking functionality must continue working.
+
+Do not rewrite the existing state machine unnecessarily.
+
+Do not replace working local persistence with Firebase.
+
+Do not remove existing functionality simply to simplify the new feature.
+
+---
+
+# 3. DEFINE THE MVP ARCHITECTURE FIRST
+
+Before writing substantial code, determine the cleanest architecture for:
+
+### Parent device
+
+Responsible for:
+
+* pairing with a child device
+* displaying the child's selected/restricted apps
+* selecting apps
+* changing time limits
+* increasing/decreasing time
+* enabling/disabling restrictions
+
+### Firebase
+
+Responsible for:
+
+* pairing metadata
+* parent/child relationship
+* synchronized restriction configuration
+* authentication/authorization
+* change propagation
+
+### Child device
+
+Responsible for:
+
+* receiving synchronized configuration
+* persisting the latest configuration locally
+* enforcing restrictions locally
+* showing current state
+* continuing enforcement while offline
+
+Write down the proposed data model and synchronization flow before implementing it.
+
+Keep the architecture small.
+
+---
+
+# 4. AUTHENTICATION / IDENTITY
+
+There is no mandatory account for basic local functionality.
+
+For remote parental control, determine the minimum Firebase authentication mechanism necessary.
+
+Prefer a simple, secure approach suitable for an MVP.
+
+Possible approaches include:
+
+* anonymous authentication initially
+* authenticated parent account
+* secure pairing code
+* QR-based pairing
+
+Choose the simplest option that still prevents an arbitrary person from controlling another child's device.
+
+Do NOT create an insecure system where knowing a child's random ID is sufficient to control them.
+
+The pairing process must establish explicit authorization.
+
+Clearly distinguish:
+
+* parent identity
+* child device identity
+* pairing relationship
+
+Do not require signup for users who only use local functionality.
+
+---
+
+# 5. PARENT ↔ CHILD PAIRING
+
+Implement a simple pairing flow.
+
+Example:
+
+### Child
+
+1. Open Parental Control.
+2. Choose "Set up as Child".
+3. App generates a short-lived pairing code or QR code.
+4. Child shows code/QR.
+
+### Parent
+
+1. Open Parental Control.
+2. Choose "Add Child".
+3. Enter/scan pairing code.
+4. Firebase establishes the relationship.
+5. Parent sees the child device.
+
+The exact UX can differ if you find a better secure MVP approach.
+
+Requirements:
+
+* pairing codes expire
+* pairing cannot silently be hijacked
+* parent authorization is stored securely
+* child knows when it is paired
+* parent knows which child/device it controls
+* unpairing is possible
+* stale pairings can be invalidated
+
+Do not build multi-parent/multi-child management unless required for the MVP.
+
+---
+
+# 6. FIREBASE DATA MODEL
+
+Design a minimal Firestore/Realtime Database model.
+
+For example, conceptually:
+
+```text
+parents/
+  {parentId}/
+    children/
+      {childId}/
+
+children/
+  {childId}/
+    pairedParentId
+    deviceName
+    lastSeen
+    configVersion
+
+restrictions/
+  {childId}/
+    enabled
+    apps/
+      {packageName}/
+        enabled
+        allowedMinutes
+        remainingMinutes
+        updatedAt
+        version
+```
+
+This is only an example.
+
+Choose the actual schema based on:
+
+* Firebase security rules
+* atomic updates
+* offline behavior
+* synchronization
+* conflict handling
+* minimal reads/writes
+
+Do not blindly copy this structure.
+
+---
+
+# 7. FIREBASE SECURITY RULES
+
+This is mandatory.
+
+Do NOT ship with permissive rules such as:
+
+```text
+allow read, write: if true;
+```
+
+or any equivalent insecure configuration.
+
+Write proper Firebase Security Rules so:
+
+* a parent can access only their paired child
+* a child can access only its own configuration
+* arbitrary users cannot modify restrictions
+* arbitrary users cannot read another family's data
+* pairing operations are tightly controlled
+* clients cannot impersonate another device
+* clients cannot elevate themselves to parent
+
+Test the rules.
+
+Treat this as a security-critical part of the feature.
+
+---
+
+# 8. CHILD RESTRICTION MODEL
+
+The child device should have a local representation of the remote restrictions.
+
+Each selected application should have:
+
+* package name
+* display name
+* enabled/disabled
+* allowed time
+* remaining time
+* last synchronized timestamp/version
+
+The local child device must persist this state.
+
+Use the existing persistence architecture where appropriate.
+
+Do not query Firebase from the Accessibility Service for every app switch.
+
+The Accessibility Service should use local state.
+
+---
+
+# 9. OFFLINE-FIRST ENFORCEMENT
+
+This is extremely important.
+
+The flow should be:
+
+```text
+Firebase
+   ↓
+Synchronization layer
+   ↓
+Local persistent restriction state
+   ↓
+Accessibility Service
+   ↓
+Block enforcement
+```
+
+NOT:
+
+```text
+Accessibility Service
+   ↓
+Internet
+   ↓
+Firebase
+   ↓
+Should I block this app?
+```
+
+If the internet disappears:
+
+* existing restrictions continue working
+* timers continue working
+* blocking continues working
+* latest known configuration remains active
+
+When connectivity returns:
+
+* synchronize changes
+* resolve conflicts safely
+* update local state
+
+---
+
+# 10. PARENT APP UI
+
+Add a polished parental-control section.
+
+The parent should see something similar to:
+
+```text
+Parental Control
+
+Child: Alex's Phone
+● Connected
+
+Restrictions                         ON
+
+Instagram
+████████░░  32 min remaining
+−                         +
+
+YouTube
+██████░░░░  18 min remaining
+−                         +
+
+Games
+████░░░░░░  10 min remaining
+−                         +
+
+              Manage Apps
+```
+
+This is only a conceptual example.
+
+Use the existing ScrollGuard visual language.
+
+Requirements:
+
+* obvious ON/OFF control
+* obvious connection status
+* app names/icons
+* remaining time clearly visible
+* * / − controls
+* app selection
+* clean spacing
+* accessible controls
+* clear disabled states
+* loading states
+* error states
+* offline status
+
+Do not overdesign it.
+
+---
+
+# 11. APP SELECTION
+
+Reuse the existing app-picker logic where possible.
+
+Parent must be able to:
+
+* view launchable applications
+* select applications
+* deselect applications
+* see which apps are currently restricted
+* save/synchronize selection
+
+Do not rely on hardcoded package-name exceptions.
+
+Do not expose system/internal applications unnecessarily.
+
+Respect Android package visibility rules.
+
+---
+
+# 12. TIME LIMIT CONTROLS
+
+For each restricted application:
+
+* show remaining time
+* show configured allowance
+* allow `+`
+* allow `−`
+
+Choose sensible increments based on the existing app's timer UX.
+
+Requirements:
+
+* prevent negative time
+* enforce maximum limits
+* avoid integer overflow
+* update UI immediately
+* persist changes
+* synchronize changes to Firebase
+* apply changes on the child device
+* work while parent is temporarily offline where practical
+* reconcile when connectivity returns
+
+Make the semantics clear.
+
+For example:
+
+**Allowance** = parent's configured daily allowance.
+
+**Remaining** = allowance minus time already consumed today.
+
+Do not accidentally reset remaining time simply because the parent changed the allowance.
+
+---
+
+# 13. DAILY TIME ACCOUNTING
+
+Design the time model carefully.
+
+For each restricted package, determine:
+
+* daily allowance
+* consumed time
+* remaining time
+* local calendar day
+
+Use the device's local calendar day.
+
+Handle:
+
+* midnight
+* timezone changes
+* reboot
+* process death
+* device sleep
+* service restart
+
+Do not count time while the restricted application is not actually being used.
+
+Do not double-count time because multiple accessibility events arrive.
+
+Do not rely on a one-second cloud timer.
+
+Time consumption must happen locally on the child device.
+
+---
+
+# 14. ON/OFF TOGGLE
+
+The parent must be able to globally enable or disable parental restrictions.
+
+When OFF:
+
+* selected apps should not be blocked by parental-control rules
+* local existing ScrollGuard functionality should remain logically separate
+* child UI should reflect the actual synchronized state
+
+When ON:
+
+* selected apps become subject to their configured limits
+
+Do not conflate:
+
+**Parental Control enabled**
+
+with:
+
+**ScrollGuard personal timer/session state**
+
+They are different concepts and should have separate state models.
+
+---
+
+# 15. SYNC ENGINE
+
+Implement a small synchronization layer.
+
+It should:
+
+* observe Firebase changes
+* update local state
+* publish local changes
+* handle connectivity loss
+* retry failed synchronization
+* avoid duplicate writes
+* avoid infinite retry loops
+* handle app restart
+* handle process death
+* handle stale remote data
+* preserve the newest valid configuration
+
+Use versioning or timestamps where necessary.
+
+Prefer deterministic conflict resolution.
+
+For MVP, a simple:
+
+`monotonic config version`
+
+or:
+
+`server timestamp`
+
+strategy is acceptable if correctly implemented.
+
+Do not create a complicated distributed-sync system.
+
+---
+
+# 16. FIREBASE OFFLINE BEHAVIOR
+
+Verify:
+
+### Parent online → child online
+
+Change should propagate quickly.
+
+### Parent offline → child online
+
+Parent changes should queue locally and synchronize when connectivity returns.
+
+### Parent online → child offline
+
+Child continues using its last synchronized restrictions.
+
+### Both offline
+
+Each device continues functioning using local state.
+
+### Child reconnects
+
+Latest valid configuration is synchronized.
+
+Document the chosen conflict behavior.
+
+---
+
+# 17. SECURITY / CHILD PROTECTION
+
+Perform a security review specifically for remote control.
+
+Verify that:
+
+* a random user cannot control a child
+* a child cannot impersonate a parent
+* another parent cannot access unrelated children
+* Firebase rules enforce authorization
+* pairing codes cannot be reused indefinitely
+* sensitive pairing information is not logged
+* Firebase credentials/configuration contain no secrets beyond public client configuration
+* local authorization state is protected appropriately
+
+Do not assume Firebase client configuration itself is a secret.
+
+The actual security boundary must be Firebase Authentication + Security Rules.
+
+---
+
+# 18. NOTIFICATIONS / CONNECTION STATUS
+
+The child device should know whether it is:
+
+* paired
+* synchronized
+* temporarily offline
+* unpaired
+
+The parent should see:
+
+* connected
+* last seen
+* syncing
+* offline
+
+Do not constantly notify users about transient connectivity changes.
+
+Only surface meaningful states.
+
+---
+
+# 19. FAILURE HANDLING
+
+Every remote operation needs a clear failure path.
+
+Examples:
+
+* Firebase unavailable
+* permission denied
+* pairing expired
+* child unpaired
+* stale configuration
+* synchronization conflict
+* malformed remote data
+* app removed from device
+* child device offline
+
+Never silently fail.
+
+The child must fail safely.
+
+For example:
+
+> If Firebase is unavailable, continue enforcing the last valid locally stored configuration.
+
+Do not disable parental restrictions merely because the cloud is unavailable.
+
+---
+
+# 20. ANDROID LIFECYCLE
+
+Audit the interaction between the new cloud functionality and:
+
+* AccessibilityService
+* TimerService
+* Activities
+* Room
+* StateFlow
+* Firebase listeners
+* WorkManager if used
+
+Do not keep Firebase listeners alive unnecessarily.
+
+Do not leak Activity references.
+
+Do not perform network operations on the main thread.
+
+Do not make the Accessibility Service depend on an Activity being alive.
+
+---
+
+# 21. FIREBASE COST CONTROL
+
+Design the MVP so it does not generate unnecessary reads/writes.
+
+Avoid:
+
+* writing every second
+* listening to unnecessary collections
+* uploading timer ticks
+* uploading every accessibility event
+
+Cloud synchronization should happen when configuration changes.
+
+Time consumption should remain local.
+
+---
+
+# 22. UI STATES
+
+Every parental-control screen should handle:
+
+### Loading
+
+Show an appropriate loading state.
+
+### No child connected
+
+Show clear setup instructions.
+
+### Child connected
+
+Show child and controls.
+
+### Offline
+
+Show meaningful offline state without making the app unusable.
+
+### Syncing
+
+Show subtle synchronization feedback.
+
+### Error
+
+Explain what happened and what the user can do.
+
+### No restricted apps
+
+Show an empty state with a clear "Manage Apps" action.
+
+---
+
+# 23. TESTING
+
+Add tests before declaring this feature complete.
+
+At minimum:
+
+### Pairing
+
+* valid pairing
+* expired pairing
+* invalid pairing
+* duplicate pairing
+* unpairing
+* unauthorized access
+
+### Firebase authorization
+
+Test Firebase Security Rules for:
+
+* valid parent
+* unrelated parent
+* child
+* unauthenticated user
+* malicious child attempting parent operations
+
+### Restrictions
+
+* add app
+* remove app
+* enable
+* disable
+* change allowance
+* * time
+* − time
+
+### Time
+
+* remaining time calculation
+* midnight rollover
+* reboot
+* process death
+* timezone changes
+* no double counting
+
+### Offline
+
+* child offline
+* parent offline
+* reconnect
+* queued changes
+* stale configuration
+
+### Enforcement
+
+Verify:
+
+```text
+Remote config
+→ local persistence
+→ AccessibilityService
+→ blocked app
+```
+
+The cloud must never be directly required by the blocking decision.
+
+---
+
+# 24. REAL DEVICE TESTING
+
+Do not rely exclusively on unit tests.
+
+Use at least two Android devices/emulators where practical:
+
+* Parent device
+* Child device
+
+Verify:
+
+1. Pair devices.
+2. Parent selects an app.
+3. Child receives the configuration.
+4. Parent enables restrictions.
+5. Child app becomes restricted.
+6. Parent changes time limit.
+7. Child receives updated allowance.
+8. Parent disables restrictions.
+9. Child becomes unrestricted.
+10. Disconnect internet.
+11. Child continues enforcing the latest configuration.
+12. Reconnect.
+13. Synchronization recovers correctly.
+14. Kill/restart child process.
+15. Verify restrictions remain.
+16. Reboot child.
+17. Verify restrictions remain.
+
+Test the actual release build, not only debug if practical.
+
+---
+
+# 25. DO NOT BUILD THESE YET
+
+Explicitly do NOT add:
+
+* chat
+* location tracking
+* browsing history
+* screenshots
+* social features
+* AI features
+* advanced analytics
+* multi-parent administration
+* complicated dashboards
+* subscriptions
+* ads
+* excessive cloud architecture
+* unnecessary backend services
+
+Keep this MVP focused.
+
+---
+
+# 26. PRODUCTION-QUALITY REQUIREMENTS
+
+Before completion:
+
+* no compiler errors
+* no lint errors
+* tests pass
+* no security-rule holes
+* no obvious crashes
+* no cloud dependency for local enforcement
+* no silent synchronization failures
+* no race conditions
+* no duplicate timer accounting
+* no UI controls that appear functional but aren't
+* no misleading connection status
+* no secrets committed
+* no unnecessary Firebase writes
+* no regressions in existing ScrollGuard functionality
+
+---
+
+# 27. FINAL AUDIT
+
+After implementing the MVP, perform a completely fresh audit.
+
+Do not assume the requirements above cover everything.
+
+Inspect:
+
+* Kotlin code
+* Gradle
+* AndroidManifest
+* Firebase configuration
+* Firebase Security Rules
+* Room
+* SharedPreferences
+* AccessibilityService
+* TimerService
+* Activities
+* UI layouts
+* state management
+* synchronization
+* lifecycle
+* threading
+* security
+* offline behavior
+
+Search for:
+
+```text
+TODO
+FIXME
+HACK
+catch (Exception)
+catch (Throwable)
+printStackTrace
+Log.d
+Log.v
+!!
+@SuppressLint
+hardcoded secrets
+allow read, write
+```
+
+Investigate every meaningful result.
+
+---
+
+# 28. FINAL VERIFICATION COMMANDS
+
+Run the complete project verification after implementation:
+
+```bash
+./gradlew clean
+./gradlew test
+./gradlew lintDebug lintRelease
+./gradlew assembleDebug assembleRelease
+```
+
+Run any Firebase emulator/security-rule tests available.
+
+Perform real parent/child device testing.
+
+---
+
+# FINAL REPORT
+
+When finished, report:
+
+## Implemented
+
+Every MVP feature actually completed.
+
+## Architecture
+
+Explain:
+
+* Parent
+* Firebase
+* Child
+* local persistence
+* synchronization
+* enforcement
+
+## Security
+
+Explain Firebase Authentication, pairing, and Security Rules.
+
+## Offline Behavior
+
+Explain exactly what continues working without internet.
+
+## Tests
+
+List exact commands and real-device tests.
+
+## Additional Issues Found
+
+List issues discovered beyond these requirements.
+
+## Remaining Limitations
+
+Be honest about Android/Firebase/platform limitations.
+
+## Production Verdict
+
+Use exactly:
+
+**READY FOR MVP TESTING**
+
+or
+
+**NOT READY FOR MVP TESTING**
+
+Do NOT call this production-ready until the parent/child synchronization has been tested on actual devices and the Firebase Security Rules have been tested.
+
+The goal is a **small, reliable parental-control MVP**, not a large feature-heavy platform.

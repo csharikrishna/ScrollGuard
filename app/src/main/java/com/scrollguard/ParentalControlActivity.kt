@@ -62,6 +62,13 @@ class ParentalControlActivity : AppCompatActivity() {
     private var dashboardAppsListener: ListenerRegistration? = null
     private var dashboardStatusListener: ListenerRegistration? = null
     private var dashboardRequestsListener: ListenerRegistration? = null
+    private var unpairRequestListener: ListenerRegistration? = null
+
+    // True only on the "connection lost" child screen (Room says paired but the anonymous
+    // Firebase session is gone) — that path can't reach Firestore to file an unpair request, so
+    // its Unpair button stays the old immediate local-only recovery action. The normal paired
+    // child screen instead requires parent approval (see confirmChildUnpairAction()).
+    private var childSessionNeedsRepair = false
 
     private var currentConfig: ParentalConfig? = null
     private var currentConsumedMap: Map<String, Long> = emptyMap()
@@ -153,6 +160,7 @@ class ParentalControlActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityParentalControlBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -175,6 +183,7 @@ class ParentalControlActivity : AppCompatActivity() {
         dashboardAppsListener?.remove()
         dashboardStatusListener?.remove()
         dashboardRequestsListener?.remove()
+        unpairRequestListener?.remove()
         super.onDestroy()
     }
 
@@ -263,7 +272,13 @@ class ParentalControlActivity : AppCompatActivity() {
         }
 
         binding.btnUnpair.setOnClickListener { confirmUnpair() }
-        binding.btnChildUnpair.setOnClickListener { confirmUnpair() }
+        binding.btnDeleteAccountFromDashboard.setOnClickListener { confirmDeleteAccount() }
+        binding.btnDeleteAccountFromPairing.setOnClickListener { confirmDeleteAccount() }
+        // A paired child with a live session must ask the parent (see confirmChildUnpairAction);
+        // the "connection lost" repair screen reuses this same button for its old immediate,
+        // local-only recovery action, since that screen has no working Firestore session to
+        // file a request through in the first place.
+        binding.btnChildUnpair.setOnClickListener { confirmChildUnpairAction() }
     }
 
     private fun loadInitialState() {
@@ -546,6 +561,9 @@ class ParentalControlActivity : AppCompatActivity() {
         } else {
             getString(R.string.restrictions_disabled)
         }
+        childSessionNeedsRepair = false
+        binding.btnChildUnpair.isEnabled = true
+        binding.btnChildUnpair.text = getString(R.string.request_unpair)
     }
 
     /**
@@ -558,6 +576,9 @@ class ParentalControlActivity : AppCompatActivity() {
         hideAllViews()
         binding.layoutChildStatus.visibility = View.VISIBLE
         binding.tvChildSyncStatus.text = getString(R.string.child_needs_repair)
+        childSessionNeedsRepair = true
+        binding.btnChildUnpair.isEnabled = true
+        binding.btnChildUnpair.text = getString(R.string.unpair)
     }
 
     private fun buildAppCatalog(): List<Map<String, String>> {
@@ -829,7 +850,8 @@ class ParentalControlActivity : AppCompatActivity() {
         dashboardStatusListener = familyRef.collection("status").document("current")
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot == null) return@addSnapshotListener
-                updateChildConnectionStatus(snapshot.getTimestamp("lastSeen"))
+                val accessibilityHealthy = snapshot.getBoolean("accessibilityHealthy") ?: true
+                updateChildConnectionStatus(snapshot.getTimestamp("lastSeen"), accessibilityHealthy)
 
                 @Suppress("UNCHECKED_CAST")
                 val consumedByPkg = snapshot.get("consumedByPackage") as? Map<String, Map<String, Any>>
@@ -856,7 +878,45 @@ class ParentalControlActivity : AppCompatActivity() {
             .whereEqualTo("status", "PENDING")
             .addSnapshotListener { snapshot, _ ->
                 val requestDoc = snapshot?.documents?.firstOrNull()
-                if (requestDoc != null) {
+                // Missing "type" means an older/existing time-request doc predating this field.
+                if (requestDoc != null && requestDoc.getString("type") == "UNPAIR") {
+                    val childName = binding.tvChildDeviceName.text.toString()
+                    binding.cardPendingRequests.visibility = View.VISIBLE
+                    binding.tvRequestDetails.text = getString(R.string.child_requested_unpair_format, childName)
+                    binding.btnApproveRequest.isEnabled = true
+                    binding.btnDenyRequest.isEnabled = true
+
+                    // Approving IS calling unpair() — there's no separate "mark approved" step.
+                    // This deletes the family record (and this request doc with it), which is
+                    // exactly what tells the child's own listener (sendUnpairRequest) it was
+                    // approved. Reuses the parent's own unpair flow verbatim rather than a
+                    // second, parallel implementation of the same cleanup.
+                    binding.btnApproveRequest.setOnClickListener {
+                        binding.btnApproveRequest.isEnabled = false
+                        binding.btnDenyRequest.isEnabled = false
+                        performUnpair()
+                    }
+
+                    binding.btnDenyRequest.setOnClickListener {
+                        binding.btnApproveRequest.isEnabled = false
+                        binding.btnDenyRequest.isEnabled = false
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                requestDoc.reference.update("status", "DENIED").await()
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(
+                                        this@ParentalControlActivity,
+                                        getString(R.string.error_change_not_saved, friendlyErrorMessage(e)),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    binding.btnApproveRequest.isEnabled = true
+                                    binding.btnDenyRequest.isEnabled = true
+                                }
+                            }
+                        }
+                    }
+                } else if (requestDoc != null) {
                     val pkg = requestDoc.getString("packageName") ?: ""
                     val appName = requestDoc.getString("appName") ?: pkg
                     val mins = requestDoc.getLong("minutes") ?: 10L
@@ -929,22 +989,25 @@ class ParentalControlActivity : AppCompatActivity() {
     }
 
     /**
-     * Renders the child's connection status from an actual lastSeen timestamp rather than
-     * trusting the status doc's syncState field — the child currently always writes
-     * syncState="SYNCED" regardless of its real connectivity (a separate, deferred gap — see
-     * AUDIT_PROGRESS.md), so syncState alone can't distinguish stale from fresh. A child not
-     * seen within STALE_THRESHOLD_MS is shown as "Last seen …", never as "Connected", so a
-     * long-disconnected child can't misleadingly read as currently reachable.
+     * Renders the child's connection status from an actual lastSeen timestamp, computed
+     * client-side, rather than trusting a status flag the child sets. A child not seen within
+     * STALE_THRESHOLD_MS is shown as "Last seen …", never as "Connected", so a long-disconnected
+     * child can't misleadingly read as currently reachable.
+     *
+     * [accessibilityHealthy] mirrors TimerState.accessibilityHealthy from the child device (see
+     * SyncEngine.pushStatus) — surfaced here so a parent can tell the enforcement mechanism
+     * itself was disabled, distinct from the device simply being offline.
      */
-    private fun updateChildConnectionStatus(lastSeen: com.google.firebase.Timestamp?) {
+    private fun updateChildConnectionStatus(lastSeen: com.google.firebase.Timestamp?, accessibilityHealthy: Boolean) {
         binding.tvChildStatus.text = when {
             lastSeen == null -> getString(R.string.child_offline)
-            System.currentTimeMillis() - lastSeen.toDate().time <= STALE_THRESHOLD_MS ->
-                getString(R.string.child_connected)
-            else -> getString(
-                R.string.child_last_seen_format,
-                java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(lastSeen.toDate())
-            )
+            System.currentTimeMillis() - lastSeen.toDate().time > STALE_THRESHOLD_MS ->
+                getString(
+                    R.string.child_last_seen_format,
+                    java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(lastSeen.toDate())
+                )
+            !accessibilityHealthy -> getString(R.string.child_connected_accessibility_disabled)
+            else -> getString(R.string.child_connected)
         }
     }
 
@@ -993,6 +1056,10 @@ class ParentalControlActivity : AppCompatActivity() {
 
     // ── Unpair ──────────────────────────────────────────────────────────
 
+    /** Entry point for the parent's own "Unpair" button, and the child's "connection lost"
+     *  repair screen — both perform the unpair themselves, immediately, with no approval step
+     *  (the parent unpairing their own dashboard needs no one else's permission; a child whose
+     *  session is already broken has no live Firestore access to file a request through). */
     private fun confirmUnpair() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.unpair))
@@ -1004,6 +1071,18 @@ class ParentalControlActivity : AppCompatActivity() {
             .show()
     }
 
+    /** Entry point for the paired child's Unpair button — routes to the old immediate behavior
+     *  only for the broken-session repair screen; otherwise requires parent approval, since a
+     *  live, un-gated self-unpair let a child instantly destroy the parent's own family record
+     *  with no consent (see firestore.rules — a child can no longer delete families/{id} at all). */
+    private fun confirmChildUnpairAction() {
+        if (childSessionNeedsRepair) {
+            confirmUnpair()
+        } else {
+            confirmRequestUnpair()
+        }
+    }
+
     private fun performUnpair() {
         val fid = currentConfig?.familyId
         showLoading(true)
@@ -1011,16 +1090,189 @@ class ParentalControlActivity : AppCompatActivity() {
             if (fid != null) {
                 PairingManager.unpair(fid)
             }
-            parentalDao.clearConfig()
-            parentalDao.clearAllRestrictions()
-            ParentalControlState.clear()
-            SyncWorker.cancel(applicationContext)
-            ParentalAuthManager.signOut()
-            currentConfig = null
+            clearLocalParentalState()
 
             withContext(Dispatchers.Main) {
                 showLoading(false)
                 Toast.makeText(this@ParentalControlActivity, getString(R.string.unpaired_success), Toast.LENGTH_SHORT).show()
+                showRoleSelection()
+            }
+        }
+    }
+
+    /** Local-only teardown shared by [performUnpair] (which also deletes the remote family
+     *  record itself) and the approved-unpair callback in [confirmRequestUnpair] (where the
+     *  parent has already deleted the remote record via [PairingManager.unpair]). */
+    private suspend fun clearLocalParentalState() {
+        parentalDao.clearConfig()
+        parentalDao.clearAllRestrictions()
+        ParentalControlState.clear()
+        SyncWorker.cancel(applicationContext)
+        ParentalAuthManager.signOut()
+        currentConfig = null
+    }
+
+    private fun confirmRequestUnpair() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.request_unpair))
+            .setMessage(getString(R.string.request_unpair_confirm))
+            .setPositiveButton(getString(R.string.request_unpair)) { _, _ ->
+                sendUnpairRequest()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Files an UNPAIR request the parent must approve, instead of the child unilaterally
+     * unpairing (spec: a child could previously destroy the parent's whole family record with
+     * one un-gated tap — see firestore.rules for the matching families/{id} delete restriction).
+     * Reuses the same requests/{id} subcollection and PENDING/APPROVED/DENIED shape the existing
+     * "ask for more time" flow already uses (see BlockActivity.setupParentalTimeRequest) rather
+     * than inventing new schema, distinguished by a "type" field.
+     *
+     * There's no separate "APPROVED" status to watch for: the parent's approval action is
+     * literally calling [PairingManager.unpair], which deletes this request doc along with
+     * everything else — so this doc disappearing (not a status flip) IS the approval signal.
+     */
+    private fun sendUnpairRequest() {
+        val fid = currentConfig?.familyId ?: return
+        binding.btnChildUnpair.isEnabled = false
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val reqRef = firestore.collection("families").document(fid)
+                    .collection("requests").document()
+                reqRef.set(mapOf(
+                    "type" to "UNPAIR",
+                    "status" to "PENDING",
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                )).await()
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@ParentalControlActivity, getString(R.string.unpair_request_sent), Toast.LENGTH_SHORT).show()
+                }
+
+                unpairRequestListener?.remove()
+                unpairRequestListener = reqRef.addSnapshotListener { snapshot, _ ->
+                    if (snapshot == null) return@addSnapshotListener
+                    if (!snapshot.exists()) {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            clearLocalParentalState()
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@ParentalControlActivity, getString(R.string.unpaired_success), Toast.LENGTH_SHORT).show()
+                                showRoleSelection()
+                            }
+                        }
+                    } else if (snapshot.getString("status") == "DENIED") {
+                        Toast.makeText(this@ParentalControlActivity, getString(R.string.unpair_request_denied), Toast.LENGTH_SHORT).show()
+                        binding.btnChildUnpair.isEnabled = true
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@ParentalControlActivity,
+                        getString(R.string.error_change_not_saved, friendlyErrorMessage(e)),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    binding.btnChildUnpair.isEnabled = true
+                }
+            }
+        }
+    }
+
+    // ── Parent account deletion (Google Play User Data policy: in-app deletion path) ──────
+
+    /**
+     * Deletes the parent's account entirely: any paired family's Firestore data (via the same
+     * [PairingManager.unpair] cascade the Unpair button uses), then the Firebase Auth identity
+     * itself. Reachable from both parent-facing screens (paired dashboard and the
+     * signed-in-but-not-yet-paired pairing screen) since a parent can want this at either point.
+     */
+    private fun confirmDeleteAccount() {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.delete_my_account))
+            .setMessage(getString(R.string.delete_account_confirm_message))
+            .setPositiveButton(getString(R.string.delete_my_account)) { _, _ -> promptPasswordAndDeleteAccount() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Firebase requires a "recent login" for account deletion — a session open for a while fails
+     * with FirebaseAuthRecentLoginRequiredException instead of actually deleting anything, so
+     * this re-collects the password immediately before deleting rather than assuming the
+     * existing session is fresh enough.
+     */
+    private fun promptPasswordAndDeleteAccount() {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = getString(R.string.password_hint)
+        }
+        val padding = (16 * resources.displayMetrics.density).toInt()
+        val container = android.widget.FrameLayout(this).apply {
+            setPadding(padding, padding / 2, padding, 0)
+            addView(input)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.delete_account_reauth_title))
+            .setMessage(getString(R.string.delete_account_reauth_message))
+            .setView(container)
+            .setPositiveButton(getString(R.string.delete_my_account)) { _, _ ->
+                val password = input.text.toString()
+                if (password.isEmpty()) {
+                    Toast.makeText(this, getString(R.string.error_fill_fields), Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                performDeleteAccount(password)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun performDeleteAccount(password: String) {
+        showLoading(true)
+        val fid = currentConfig?.familyId
+        lifecycleScope.launch(Dispatchers.IO) {
+            val reauth = ParentalAuthManager.reauthenticateWithPassword(password)
+            if (reauth.isFailure) {
+                withContext(Dispatchers.Main) {
+                    showLoading(false)
+                    Toast.makeText(
+                        this@ParentalControlActivity,
+                        getString(R.string.error_change_not_saved, friendlyErrorMessage(reauth.exceptionOrNull())),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                return@launch
+            }
+
+            // Delete Firestore data BEFORE the Auth identity — Firestore rules key everything off
+            // request.auth.uid, which stops existing the instant deleteCurrentUser() succeeds, so
+            // doing it in the other order would leave this family's data orphaned and undeletable.
+            if (fid != null) {
+                PairingManager.unpair(fid)
+            }
+
+            val deleted = ParentalAuthManager.deleteCurrentUser()
+            if (deleted.isFailure) {
+                withContext(Dispatchers.Main) {
+                    showLoading(false)
+                    Toast.makeText(
+                        this@ParentalControlActivity,
+                        getString(R.string.error_change_not_saved, friendlyErrorMessage(deleted.exceptionOrNull())),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                return@launch
+            }
+
+            clearLocalParentalState()
+
+            withContext(Dispatchers.Main) {
+                showLoading(false)
+                Toast.makeText(this@ParentalControlActivity, getString(R.string.delete_account_success), Toast.LENGTH_LONG).show()
                 showRoleSelection()
             }
         }

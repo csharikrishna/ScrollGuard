@@ -1,0 +1,883 @@
+I want you to investigate the following **newly identified potential issues**.
+
+IMPORTANT: **Do NOT assume any of these issues are real just because they were mentioned in a previous analysis.**
+
+Your first job is to determine whether each issue is **actually present in the current codebase/application**, whether it is technically relevant to this MVP, and whether the proposed concern is valid or exaggerated.
+
+Only after validating them should you begin implementing fixes.
+
+---
+
+# PHASE 1 — VALIDATE FIRST
+
+For every item below:
+
+1. Inspect the relevant code.
+2. Trace the actual implementation and data flow.
+3. Determine whether the problem genuinely exists.
+4. If possible, reproduce it.
+5. Determine the actual severity and impact.
+6. Check whether it is already handled somewhere else in the code.
+7. Check whether the proposed solution is actually appropriate.
+8. Do NOT introduce architecture changes just because someone suggested them.
+9. Clearly classify each finding as:
+
+**REAL — CONFIRMED**
+**PARTIALLY REAL**
+**NOT ACTUALLY AN ISSUE**
+**PLATFORM LIMITATION**
+**ALREADY HANDLED**
+
+For every confirmed issue, explain the root cause before modifying anything.
+
+### Do NOT fix anything during Phase 1.
+
+I want a validation report first.
+
+---
+
+# ISSUES TO VALIDATE
+
+## 1. Parental Control remote synchronization delay
+
+The current implementation reportedly uses a `SyncWorker` with approximately a 15-minute periodic sync.
+
+Potential concern:
+
+A parent changes a restriction, but the child's device may not receive/apply the change immediately.
+
+Determine:
+
+* How parental-control settings are stored.
+* How the child discovers changes.
+* How frequently synchronization actually happens.
+* Whether there is already another mechanism that makes changes propagate immediately.
+* Whether the 15-minute worker is actually security/functionality critical or merely a fallback.
+* What happens while the child is actively using the restricted app.
+* Whether a restriction can remain ineffective for several minutes.
+* Whether the child device acknowledges or confirms the new state.
+
+Do NOT automatically conclude that FCM is required.
+
+Determine the actual architecture first.
+
+If there really is an unacceptable delay, evaluate whether FCM is the correct solution for this application.
+
+---
+
+# 2. Child-device uninstall bypass
+
+The claim is:
+
+> If the child device is in Gentle mode, the child can uninstall ScrollGuard and completely bypass parental control.
+
+Validate this carefully.
+
+Determine:
+
+* Can a paired child actually uninstall the app?
+* Does the current application use Device Admin or another mechanism?
+* Under what exact conditions is uninstall protection active?
+* Does pairing automatically enable any protection?
+* What happens if the user attempts to disable that protection?
+* What happens if the user revokes required permissions first?
+* What happens if the user force-stops the application?
+* What happens after device restart?
+* What happens after app update?
+* What happens if Accessibility is disabled?
+* What happens if Overlay permission is revoked?
+
+Do NOT simply implement "always enable Nuclear mode."
+
+First determine whether that would be appropriate for the product and technically/legal/policy-safe.
+
+If uninstall protection is genuinely missing, design the least invasive reliable solution.
+
+---
+
+# 3. Child-device enforcement bypass / permission revocation
+
+Perform a dedicated adversarial audit of the child device.
+
+Assume the child is actively trying to defeat the restrictions.
+
+Test/trace:
+
+* Disable Accessibility Service
+* Revoke Overlay permission
+* Disable notifications
+* Force-stop the application
+* Kill the application/process
+* Restart the phone
+* Turn permissions off and back on
+* Change battery optimization/background restrictions
+* Open restricted apps through different entry points
+* Use recent apps
+* Use split-screen
+* Use PiP
+* Resize windows
+* Rotate the device
+* Rapidly switch between applications
+* Open an app immediately after changing its restriction
+* Disconnect/reconnect network
+* Lose Firebase connectivity
+* Sign out where applicable
+* Break/recreate pairing
+* Attempt to bypass the timer
+* Attempt to bypass the blocking screen
+
+Determine which of these are genuine bypasses versus expected Android/platform behavior.
+
+Do not invent theoretical vulnerabilities without evidence.
+
+---
+
+# 4. Parent → Child command acknowledgement/state
+
+Investigate whether the parent currently has a reliable understanding of whether a parental-control action was actually applied on the child device.
+
+For example:
+
+Parent selects:
+
+> Block Instagram
+
+What does the parent see?
+
+Can the parent distinguish:
+
+* Change requested
+* Change uploaded
+* Change received
+* Change applied
+* Child device offline
+* Child device failed to apply the change
+
+If the current implementation simply assumes the change is immediately active, determine whether this creates a meaningful product/reliability problem.
+
+If this is a genuine issue, design an appropriate state model.
+
+Do not add unnecessary complexity if the current architecture already provides adequate guarantees.
+
+---
+
+# 5. Child-device protection lifecycle
+
+Audit the complete lifecycle of a paired child device.
+
+Determine what happens when:
+
+* App is restarted
+* Device is rebooted
+* App process is killed
+* Accessibility is disabled
+* Overlay is disabled
+* Permissions change
+* Firebase authentication expires
+* Network disappears
+* Firebase is unavailable
+* Device is offline for hours
+* App is updated
+* App data is cleared
+* User attempts to unpair
+* Parent removes the child
+* Parent changes restrictions while child is offline
+
+Identify any genuine state inconsistencies or enforcement gaps.
+
+Again:
+
+**Validate first. Do not assume the previous analysis is correct.**
+
+---
+
+# 6. Setup / onboarding friction
+
+Audit the actual setup flow.
+
+Determine whether the current onboarding genuinely creates excessive friction because of:
+
+* Accessibility permission
+* Overlay permission
+* Device Admin
+* Battery/background restrictions
+* Notification permissions
+* Other Android requirements
+
+Don't simply redesign it because "setup feels complicated."
+
+Determine:
+
+* Which permissions are actually required
+* Which are optional
+* Which are required only for certain modes
+* Whether the application explains them properly
+* Whether the order is optimal
+* Whether users can recover from denial
+* Whether users can understand why each permission is required
+* Whether the user can complete setup without external help
+
+Identify specific UX problems rather than making a vague statement that onboarding is "too much."
+
+---
+
+# 7. AccessibilityService Play Store compliance
+
+This one requires careful technical investigation.
+
+Inspect:
+
+* AccessibilityService declaration
+* Manifest configuration
+* Service metadata
+* Accessibility capabilities requested
+* How the service is actually used
+* What data it reads
+* What actions it performs
+* Why Accessibility is required for the product
+* Whether the implementation matches the stated product purpose
+
+Determine the technical facts relevant to Play Store compliance.
+
+Do NOT claim that the application is compliant or non-compliant without evidence.
+
+Clearly separate:
+
+**Technical implementation facts**
+
+from
+
+**Google Play policy/legal questions that require external verification.**
+
+If the code contains anything unnecessary or suspicious from a policy perspective, identify it.
+
+---
+
+# 8. Foreground Service / Android policy risk
+
+Inspect all foreground services.
+
+Determine:
+
+* Which foreground services exist
+* Their declared service types
+* Their actual purpose
+* Whether `FOREGROUND_SERVICE_TYPE_SPECIAL_USE` is used
+* Why it is being used
+* Whether the declaration matches the actual behavior
+* Whether the service can be avoided or simplified
+* Whether Android 14/15/16 behavior introduces any problems
+* Whether the current implementation creates Play Store review risk
+
+Again, don't assume the previous analysis is correct.
+
+Validate against the actual implementation.
+
+---
+
+# 9. Monetization
+
+This is NOT necessarily a technical bug.
+
+Determine whether anything in the current codebase actually requires monetization work before launch.
+
+Do NOT start implementing subscriptions, paywalls, billing, or premium features unless I explicitly ask for them.
+
+For now, simply document:
+
+* What functionality currently exists
+* What could reasonably become premium
+* Whether any existing architecture would make future monetization difficult
+
+Treat this as a product decision, not a bug.
+
+---
+
+# 10. Children's privacy / COPPA assumptions
+
+Audit the technical side only.
+
+Determine:
+
+* What data is collected from child devices
+* What data is stored in Firebase
+* What authentication information exists
+* What analytics/crash data is collected
+* Whether personally identifiable information is stored
+* Whether parent/child relationships are stored
+* What pairing information is stored
+* What data is retained
+* Whether there is any automatic deletion mechanism
+
+IMPORTANT:
+
+Do NOT conclude:
+
+> "Anonymous authentication means COPPA is solved."
+
+It does not automatically solve legal/privacy obligations.
+
+Give me the technical facts and clearly identify which parts require legal/business decisions.
+
+---
+
+# PHASE 2 — AFTER VALIDATION
+
+Once you have completed the validation report, **then start fixing the confirmed issues.**
+
+Do NOT fix:
+
+* Things classified as NOT ACTUALLY AN ISSUE
+* Pure platform limitations
+* Product decisions I haven't approved
+* Legal decisions
+* Monetization decisions
+
+For every **REAL — CONFIRMED** issue:
+
+1. Explain the root cause.
+2. Design the appropriate fix.
+3. Implement the fix.
+4. Keep the change minimal and production-grade.
+5. Avoid unnecessary architectural complexity.
+6. Test the fix.
+7. Run regression tests.
+8. Verify on-device where possible.
+
+---
+
+# PHASE 3 — SECURITY / BYPASS TESTING
+
+After implementing fixes, perform another adversarial pass specifically against the child device.
+
+Think like a technically capable child trying to defeat the application.
+
+Try every realistic bypass you can identify.
+
+The goal is not theoretical perfection — the goal is to eliminate **practical MVP-compromising bypasses**.
+
+---
+
+# PHASE 4 — FINAL VERIFICATION
+
+Run:
+
+* Unit tests
+* Lint
+* Debug build
+* Release build
+* R8/minification validation
+* Relevant instrumentation/device tests
+* Critical parental-control flows
+* Pairing flows
+* Permission flows
+* Service lifecycle tests
+* Restart/reboot scenarios where possible
+* PiP
+* Split-screen
+* Multi-window
+* Offline/online transitions
+
+Then provide a final report.
+
+---
+
+# FINAL REPORT FORMAT
+
+## 1. Validation Results
+
+| Issue | Status | Evidence | Severity |
+| ----- | ------ | -------- | -------- |
+
+Use only:
+
+* REAL — CONFIRMED
+* PARTIALLY REAL
+* NOT ACTUALLY AN ISSUE
+* PLATFORM LIMITATION
+* ALREADY HANDLED
+
+## 2. Confirmed Issues Fixed
+
+For each:
+
+* Problem
+* Root cause
+* Fix
+* Verification
+
+## 3. Issues Intentionally Not Changed
+
+Explain why.
+
+## 4. New Issues Discovered
+
+Anything you discovered that wasn't in my list.
+
+Fix genuine issues where appropriate.
+
+## 5. Security / Bypass Results
+
+Explain what bypass attempts were tested and what happened.
+
+## 6. Regression Results
+
+Include:
+
+* Tests
+* Lint
+* Debug build
+* Release build
+* Device verification
+
+## 7. Remaining Risks
+
+Clearly separate:
+
+* Technical risks
+* Android/platform limitations
+* Google Play policy questions
+* Legal/privacy questions
+* Product/business decisions
+
+## 8. Production Verdict
+
+Give me an honest verdict based on actual evidence.
+
+### Critical instruction
+
+**Do not optimize for finding problems. Optimize for finding REAL problems.**
+
+I would rather you tell me:
+
+> "This concern is not actually an issue and here's why."
+
+than make unnecessary changes just to make the audit report look impressive.
+
+And once the validation is complete, **fix every genuinely confirmed technical issue that can safely be fixed in the current MVP.**
+Yes. Based on the code audit you shared **and current Google Play requirements**, you have several distinct legal/Play Store areas to resolve. Some are actual technical problems; others are things you need to decide/document before publishing.
+
+## 1. Biggest Play Store issue: AccessibilityService
+
+This is the **#1 thing I'd investigate before launch**.
+
+Your app uses `AccessibilityService` to detect which app is currently open and enforce blocking. Google Play does allow AccessibilityService for various uses, but apps that aren't genuine accessibility tools must go through the Accessibility declaration process and provide prominent in-app disclosure and affirmative consent. ([support.google.com][1])
+
+Your app **should not declare itself as `isAccessibilityTool=true`** merely because it uses AccessibilityService. That designation is intended for apps whose core purpose is supporting people with disabilities. ([support.google.com][2])
+
+For ScrollGuard, you need to be prepared to explain:
+
+> "We use AccessibilityService to identify the foreground application so that the user can enforce app-specific usage restrictions/blocking."
+
+And your Play listing, in-app disclosure, and actual behavior need to be consistent.
+
+Google specifically requires disclosure of what Accessibility data is accessed, how it is used/shared, and affirmative user consent for non-accessibility-tool uses. ([support.google.com][2])
+
+### Your action
+
+Before submission:
+
+* Complete the Accessibility declaration in Play Console.
+* Have a clear in-app disclosure before enabling Accessibility.
+* Explain exactly what the service reads.
+* Explain why it is required.
+* Don't claim it is an accessibility tool.
+* Make sure your Play Store description accurately describes the functionality.
+* Prepare a short reviewer demonstration/video if requested.
+
+---
+
+# 2. Parental Control + Accessibility is actually important
+
+There is a particularly relevant part of Google's current policy:
+
+Google says AccessibilityService cannot be used to prevent users from disabling/uninstalling an app **unless authorized by a parent/guardian through a parental-control app or by authorized administrators through enterprise management software.** ([support.google.com][1])
+
+That's relevant to your product because you're building **parent-controlled child-device restrictions**.
+
+However, don't interpret this as:
+
+> "Great, therefore we can force Device Admin and everything is automatically allowed."
+
+You still need the implementation to follow Google's other policies, disclosures, consent requirements, and Android platform rules.
+
+This is exactly why I would **not blindly implement the "always enable Nuclear Mode" idea** from the earlier analysis.
+
+---
+
+# 3. Your child/parent model creates Families-policy questions
+
+Your application now has two audiences:
+
+**Adult/self-discipline user**
+
+and
+
+**Parent + child**
+
+That means you need to carefully determine what you declare as your **target audience** in Play Console.
+
+Google's Families policy applies when children are among your target audience. ([support.google.com][3])
+
+If your app targets both children and adults, Google has additional requirements around SDKs and children's data. ([support.google.com][3])
+
+This is important because your child device currently uses Firebase Anonymous Authentication.
+
+Anonymous authentication **does not magically make the app COPPA-compliant**.
+
+The legal question is about the overall data practices, not simply whether the child has an email address.
+
+---
+
+# 4. Children's data / COPPA
+
+From your Claude audit, the child device can technically have:
+
+* Anonymous Firebase account
+* Device information
+* Child-device name
+* Pairing/family relationship
+* Parental-control configuration
+* Usage/restriction information
+* Crash/analytics information
+
+Claude also discovered that Firebase Analytics could potentially collect the Android Advertising ID by default. It planned to disable that. 
+
+That is particularly important because Google has specific Families requirements around advertising identifiers.
+
+For apps targeting children, Google says AAID and several other device identifiers must not be transmitted from children or users of unknown age; mixed-audience apps have additional restrictions. ([support.google.com][4])
+
+So your decision to disable unnecessary Analytics/Ad-ID collection is a **very good move**.
+
+---
+
+# 5. Privacy Policy
+
+You will need a proper Privacy Policy.
+
+Not a generic:
+
+> "We value your privacy."
+
+You need to accurately explain:
+
+* What information you collect
+* What the parent account contains
+* What the child device contains
+* Firebase Authentication
+* Firestore
+* Analytics
+* Crashlytics
+* AccessibilityService
+* Camera usage for QR scanning
+* Device information
+* Usage/restriction information
+* How data is used
+* Who processes it
+* How long it's retained
+* How users can delete their data
+* How parents can manage/delete child-related data
+* Contact information
+
+Google requires the privacy policy to be accessible both through Play and within the app. ([support.google.com][5])
+
+And it needs to actually match your application's behavior.
+
+---
+
+# 6. Account deletion
+
+This is an important one that I would add to your engineering checklist.
+
+Your parent uses email/password Firebase Authentication.
+
+Google Play's User Data policy requires apps that allow account creation to provide a way for users to request account deletion **inside the app and externally through a web resource**. Associated user data must also be deleted, subject to legitimate retention requirements that are clearly disclosed. ([support.google.com][5])
+
+So you need to investigate:
+
+```text
+Parent creates account
+        ↓
+Parent uses ScrollGuard
+        ↓
+Parent says "Delete my account"
+        ↓
+Firebase Auth account deleted
+        ↓
+Family Firestore data deleted
+        ↓
+Child relationship/data cleaned up
+        ↓
+Any remaining associated data handled appropriately
+```
+
+Don't assume deleting the Firebase Auth user automatically deletes all Firestore data.
+
+You need to verify the entire deletion chain.
+
+---
+
+# 7. Data Safety declaration
+
+You will have to accurately complete Google Play's **Data Safety** section.
+
+This isn't something to guess.
+
+It needs to match:
+
+**Actual code + Firebase SDK behavior + Crashlytics + Analytics + Firestore + Auth + your Privacy Policy.**
+
+Google explicitly makes the developer responsible for keeping the Data Safety declaration accurate and consistent with the privacy policy. ([support.google.com][5])
+
+So after your code is finalized, you should perform a dedicated **Data Safety inventory**.
+
+---
+
+# 8. Firebase / third-party SDK responsibility
+
+You can't say:
+
+> "Firebase collects it, so it's Firebase's problem."
+
+Google's policy explicitly makes developers responsible for the third-party SDKs they integrate and their data practices. ([support.google.com][5])
+
+Your inventory should therefore include:
+
+* Firebase Auth
+* Firestore
+* Firebase Analytics
+* Crashlytics
+* Firebase Cloud Messaging, if you add it
+* Any other SDK you eventually add
+
+For each one:
+
+**What data → why → where → retention → who receives it.**
+
+---
+
+# 9. Camera / QR scanner disclosure
+
+Your pairing flow uses the camera.
+
+That's relatively straightforward, but still needs to be accurately represented.
+
+The user should understand:
+
+> Camera is being requested specifically to scan the pairing QR code.
+
+And your privacy policy should accurately explain whether the camera data itself is:
+
+* processed locally
+* stored
+* transmitted
+* recorded
+
+From your previous implementation, Claude said the rationale tells users:
+
+> "Nothing is recorded or stored."
+
+That's good **if the implementation actually guarantees that**.
+
+---
+
+# 10. Device identifiers / child device information
+
+Your Claude audit found that the child device name defaults to:
+
+> `$MANUFACTURER $MODEL`
+
+and is user-editable, meaning somebody could potentially put a child's real name there. 
+
+That's not necessarily a violation by itself, but it's something your privacy/data model needs to account for.
+
+Also be careful about collecting additional identifiers unnecessarily.
+
+Google's Families data rules specifically restrict transmission of identifiers such as:
+
+* Android Advertising ID
+* IMEI
+* IMSI
+* MAC
+* SSID
+* BSSID
+* SIM serial
+* Build serial
+
+when children or users of unknown age are involved. ([support.google.com][4])
+
+---
+
+# 11. Parent authorization / child-device control
+
+This isn't simply a Play Store policy issue — it's also a **legal/product safety issue**.
+
+Your parental-control system needs to establish:
+
+> Who is authorized to control this child device?
+
+You already discovered the serious unpairing flaw.
+
+You should ensure that:
+
+* Child cannot unpair without appropriate authorization
+* Child cannot modify parental restrictions
+* Parent can remove the child
+* Child can understand that the device is parent-managed
+* Important permissions aren't silently enabled
+* The system doesn't mislead the child about who controls the restrictions
+
+This is particularly important because you're effectively creating a **remote parental-control system**.
+
+---
+
+# 12. Privacy/legal questions you cannot solve with code
+
+There are several things Claude correctly said it can't decide.
+
+For example:
+
+### COPPA
+
+Whether your exact service is subject to COPPA and what obligations apply depends on how you operate, target users, data collection, and jurisdiction.
+
+### GDPR / other privacy laws
+
+If you offer the app to EU users, GDPR considerations can arise.
+
+### Indian law
+
+Since you're likely operating from India, you'll also want to consider India's applicable privacy/data-protection requirements depending on your business and user base.
+
+### Children's consent
+
+If your service is directed toward children or knowingly collects children's personal information, the consent/parental-consent requirements need proper legal analysis.
+
+Google itself says developers must comply with applicable laws including COPPA, GDPR, and other applicable regulations. ([support.google.com][3])
+
+**I would not make the legal determination based solely on Claude or ChatGPT.** Get a lawyer/privacy professional to review the final data flows before a serious public launch.
+
+---
+
+# So what are your actual blockers?
+
+I'd categorize them like this:
+
+### 🔴 Must resolve before Play submission
+
+**1. AccessibilityService declaration + disclosure**
+
+**2. Target audience / Families classification**
+
+**3. Privacy Policy**
+
+**4. Data Safety declaration**
+
+**5. Account deletion**
+
+**6. Child-data handling / SDK audit**
+
+**7. AccessibilityService implementation matching the declared purpose**
+
+**8. Verify parental-control/unpair authorization**
+
+### 🟠 Must investigate before launch
+
+**9. COPPA applicability**
+
+**10. GDPR / other jurisdictional privacy requirements**
+
+**11. Children's consent/parental authorization model**
+
+**12. Device/identifier collection**
+
+**13. Firebase data retention/deletion**
+
+**14. Crashlytics/Analytics behavior on child devices**
+
+### 🟢 Product/legal decision rather than immediate bug
+
+**15. Monetization**
+
+**16. Whether children are directly a target audience or the app is primarily parent-directed**
+
+That last distinction is **very important**.
+
+If ScrollGuard is marketed as:
+
+> **"A self-discipline app for adults that also lets parents manage a child's device"**
+
+that's a different product/audience positioning question from:
+
+> **"The ultimate app for kids to manage screen time."**
+
+You should decide this **before filling out Play Console's Target Audience and Families declarations**, because your actual marketing, functionality, and data practices all need to line up.
+
+### My recommendation
+
+Before you touch Play Console, do **one dedicated "Google Play + Privacy Readiness" pass** over the finished codebase. The output should be a concrete matrix:
+
+`Requirement → Why it applies → Current implementation → Missing → Code fix / policy fix / legal decision → Evidence`
+
+That will give you a much safer path to submission than trying to figure these out individually during Play review.
+
+[1]: https://support.google.com/googleplay/android-developer/answer/16909972?hl=en&utm_source=chatgpt.com "Preview: Permissions and APIs that Access Sensitive Information - Play Console Help"
+[2]: https://support.google.com/googleplay/android-developer/answer/10964491?hl=en&utm_source=chatgpt.com "Use of the AccessibilityService API - Play Console Help"
+[3]: https://support.google.com/googleplay/android-developer/answer/9893335?hl=en&utm_source=chatgpt.com "Google Play Families Policies - Play Console Help"
+[4]: https://support.google.com/googleplay/android-developer/answer/11043825?hl=en&utm_source=chatgpt.com "Data practices in Families apps - Play Console Help"
+[5]: https://support.google.com/googleplay/android-developer/answer/10144311?utm_source=chatgpt.com "User Data - Play Console Help"
+Exactly. Think of it as **two parallel tracks**:
+
+**Development** gets the app technically ready.
+**Legal + Play Store compliance** gets the app *publishable*.
+
+And your agent's report actually gives us a pretty clear picture of where you stand. 
+
+### What you have right now
+
+**Technically:** You're getting into good shape.
+
+Claude confirmed the major technical findings and is fixing the genuinely real ones: parental sync, unauthorized unpairing, the fake sync state, and unnecessary advertising-ID collection. 
+
+**Legally/Play-wise:** You're **not ready to submit yet**, but that's normal. You need to do a dedicated compliance pass.
+
+The good news is that this isn't necessarily "we have 20 legal problems." It's more like:
+
+> **We need to correctly establish what ScrollGuard is, what data it handles, what Android powers it uses, and make the app/store disclosures match reality.**
+
+The two areas I'd take especially seriously are **AccessibilityService** and **children/parental-control data**. Claude correctly separated those from ordinary code bugs.  
+
+So yes — **legal/compliance is a major part of finishing the product**, but you don't need to panic. We can treat it like another engineering workstream:
+
+```text
+SCROLLGUARD
+│
+├── Product / UX
+│
+├── Android Engineering
+│
+├── Security
+│
+├── Testing
+│
+├── Google Play Compliance
+│   ├── AccessibilityService
+│   ├── Target audience
+│   ├── Families requirements
+│   ├── Data Safety
+│   ├── Permissions
+│   └── Store listing
+│
+└── Legal / Privacy
+    ├── Privacy Policy
+    ├── Children's privacy
+    ├── COPPA applicability
+    ├── GDPR / other jurisdictions
+    ├── Data retention
+    ├── Account deletion
+    └── Parent/child data handling
+```
+
+And **you don't have to solve all of that yourself**.
+
+I can take you through the compliance side step-by-step, starting with the most important one: **whether ScrollGuard's exact use of AccessibilityService is acceptable for Google Play and what we need to change/document before submission.**

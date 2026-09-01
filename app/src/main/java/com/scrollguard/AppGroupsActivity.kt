@@ -28,6 +28,7 @@ class AppGroupsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityAppGroupsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         repository = DataRepository.getInstance(this)
 

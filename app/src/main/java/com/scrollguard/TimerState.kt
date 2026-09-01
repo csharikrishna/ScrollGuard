@@ -48,6 +48,13 @@ object TimerState {
     // set is backed by ConcurrentHashMap for correct visibility and mutation.
     @Volatile var monitoredApps: MutableSet<String> = newConcurrentSet()
 
+    /** The package BlockerAccessibilityService most recently observed in the foreground.
+     *  Single in-process source of truth for "what's in front right now" — written on every
+     *  accessibility event, read here to decide whether the ALLOWED window's usable time
+     *  should deplete (see [isUsingMonitoredApp]). Null when nothing relevant is in front, or
+     *  before the accessibility service has reported anything (e.g. right after process start). */
+    @Volatile var currentForegroundPackage: String? = null
+
     @Volatile var strictMode = false
     @Volatile var strictness = Strictness.NUCLEAR
 
@@ -64,8 +71,21 @@ object TimerState {
      *  app wasn't foregrounded when the service died; written by TimerService's health check. */
     @Volatile var accessibilityHealthy: Boolean = true
 
+    // Meaningful only while phase == LOCKED, which is a pure wall-clock wait regardless of
+    // activity. FREE and ALLOWED no longer use these — see usableRemainingMs below.
     @Volatile private var phaseEndTimeWall = 0L
     @Volatile private var phaseEndTimeElapsed = 0L
+
+    // Usage-metered budget for the ALLOWED phase (ms remaining). Unlike LOCKED, ALLOWED only
+    // depletes while a monitored app is actually in the foreground — an unused window simply
+    // doesn't advance (it stays exactly where it was, however long the device sits idle),
+    // rather than expiring on a clock the user was never actually using up. FREE deliberately
+    // stays clock-based (see transitionNext/catchUp): nothing is blocked yet during FREE, so
+    // "usage of a monitored app" isn't a meaningful thing to gate it on.
+    @Volatile private var usableRemainingMs = 0L
+    // Anchor for delta-based usage accounting during ALLOWED — see catchUp(). Reset whenever
+    // a new ALLOWED phase begins and whenever a reboot is detected (elapsedRealtime resets then).
+    @Volatile private var lastUsageAccountedElapsed = 0L
 
     // Analytics accounting: only time actually spent in LOCKED counts as "saved."
     // currentPhaseStartElapsed marks (elapsed-clock) when the *current* phase began;
@@ -91,10 +111,24 @@ object TimerState {
     }
 
     fun getRemainingSeconds(): Long {
-        if (phase == Phase.IDLE) return 0L
-        val nowElapsed = SystemClock.elapsedRealtime()
-        val rElapsed = (phaseEndTimeElapsed - nowElapsed) / 1000
-        return rElapsed.coerceAtLeast(0L)
+        return when (phase) {
+            Phase.IDLE -> 0L
+            // FREE and LOCKED are both pure wall-clock waits with an absolute deadline.
+            Phase.FREE, Phase.LOCKED -> {
+                val nowElapsed = SystemClock.elapsedRealtime()
+                ((phaseEndTimeElapsed - nowElapsed) / 1000).coerceAtLeast(0L)
+            }
+            // ALLOWED is usage-metered: remaining is whatever's left of the budget, not a
+            // deadline.
+            Phase.ALLOWED -> (usableRemainingMs / 1000).coerceAtLeast(0L)
+        }
+    }
+
+    /** True while the current foreground app (per [currentForegroundPackage]) is one of
+     *  [monitoredApps] — i.e. the ALLOWED phase's usable-time budget should be depleting. */
+    private fun isUsingMonitoredApp(): Boolean {
+        val pkg = currentForegroundPackage ?: return false
+        return monitoredApps.contains(pkg)
     }
 
     /**
@@ -162,6 +196,8 @@ object TimerState {
         cycleCount = 0
         currentPhaseStartElapsed = nowElapsed
         accumulatedLockedMs = 0L
+        usableRemainingMs = 0L
+        lastUsageAccountedElapsed = nowElapsed
         clearAllGrace()
         save(context)
     }
@@ -198,9 +234,10 @@ object TimerState {
             }
             Phase.LOCKED -> {
                 phase = Phase.ALLOWED
-                val d = allowDuration * 1000
-                phaseEndTimeWall = nowWall + d
-                phaseEndTimeElapsed = nowElapsed + d
+                // Usage-metered from here: a fresh budget that only depletes while a
+                // monitored app is actually in the foreground (see catchUp()).
+                usableRemainingMs = allowDuration * 1000
+                lastUsageAccountedElapsed = nowElapsed
             }
             Phase.ALLOWED -> {
                 cycleCount++
@@ -234,6 +271,8 @@ object TimerState {
         cycleCount = 0
         accumulatedLockedMs = 0L
         currentPhaseStartElapsed = 0L
+        usableRemainingMs = 0L
+        lastUsageAccountedElapsed = 0L
         clearAllGrace()
         save(context)
     }
@@ -245,6 +284,8 @@ object TimerState {
             putLong("phaseEndTimeElapsed", phaseEndTimeElapsed)
             putLong("currentPhaseStartElapsed", currentPhaseStartElapsed)
             putLong("accumulatedLockedMs", accumulatedLockedMs)
+            putLong("usableRemainingMs", usableRemainingMs)
+            putLong("lastUsageAccountedElapsed", lastUsageAccountedElapsed)
             putInt("cycleCount", cycleCount)
             // FIX M1: Always pass a NEW HashSet to putStringSet. The Android docs
             // warn that SharedPreferences may reuse the internal set reference,
@@ -305,6 +346,22 @@ object TimerState {
         freeDuration = p.getLong("freeDuration", 3600L)
         lockDuration = p.getLong("lockDuration", 600L)
         allowDuration = p.getLong("allowDuration", 120L)
+
+        // Migration safety for prefs written before usableRemainingMs existed: default to a
+        // fresh budget if we're currently in ALLOWED, rather than 0 (which would incorrectly
+        // look "already exhausted" and immediately lock someone mid-ALLOWED the moment they
+        // update the app). Must run after allowDuration is loaded, just above.
+        usableRemainingMs = if (p.contains("usableRemainingMs")) {
+            p.getLong("usableRemainingMs", 0L)
+        } else if (phase == Phase.ALLOWED) {
+            allowDuration * 1000
+        } else {
+            0L
+        }
+        lastUsageAccountedElapsed = p.getLong("lastUsageAccountedElapsed", 0L)
+        if (lastUsageAccountedElapsed == 0L && phase == Phase.ALLOWED) {
+            lastUsageAccountedElapsed = SystemClock.elapsedRealtime()
+        }
         // H5: currentStreak removed (dead field)
         totalSecondsSaved = p.getLong("totalSecondsSaved", 0L)
         scheduleEnabled = p.getBoolean("scheduleEnabled", false)
@@ -346,19 +403,28 @@ object TimerState {
         // pre-reboot elapsed target, regardless of the real wall-clock deadline).
         val rebooted = nowElapsed < currentPhaseStartElapsed
         if (rebooted) {
-            val remaining = (phaseEndTimeWall - nowWall)
-            phaseEndTimeElapsed = nowElapsed + remaining
+            if (phase == Phase.LOCKED) {
+                val remaining = (phaseEndTimeWall - nowWall)
+                phaseEndTimeElapsed = nowElapsed + remaining
+            }
             // The device was off for this whole gap — no LOCKED time was actually being
-            // enforced during it, so don't credit it. Resume accounting from now.
+            // enforced during it, and no ALLOWED usage could have happened either, so don't
+            // credit either accounting for it. Resume from now.
             currentPhaseStartElapsed = nowElapsed
+            lastUsageAccountedElapsed = nowElapsed
         }
 
-        // Check if offline for a massive amount of time (e.g. > 1 full cycle of all phases)
-        val cycleTimeMs = (freeDuration + lockDuration + allowDuration) * 1000L
-        if (nowWall > phaseEndTimeWall + cycleTimeMs) {
-            Log.w(TAG, "healState: Massive offline time detected, resetting to IDLE")
-            reset(context)
-            return
+        // The "stuck forever" safety valve only applies to LOCKED, which is a pure wall-clock
+        // wait. ALLOWED is usage-metered and is *supposed* to sit exactly where it was however
+        // long the device was off — there is no analogous "too long" condition for it; that's
+        // the whole point of this phase no longer being clock-driven.
+        if (phase == Phase.LOCKED) {
+            val cycleTimeMs = (freeDuration + lockDuration + allowDuration) * 1000L
+            if (nowWall > phaseEndTimeWall + cycleTimeMs) {
+                Log.w(TAG, "healState: Massive offline time detected, resetting to IDLE")
+                reset(context)
+                return
+            }
         }
 
         val changed = catchUp(context, rebooted)
@@ -386,24 +452,65 @@ object TimerState {
         var iterations = 0
         var changed = false
 
-        // Use virtual time trackers to simulate advancing through missed phases
+        // Virtual time trackers for LOCKED's chained catch-up (see below) — meaningless for
+        // ALLOWED/FREE transitions triggered by budget exhaustion, which always happen "now".
         var virtualNowWall = phaseEndTimeWall
         var virtualNowElapsed = phaseEndTimeElapsed
 
         while (isRunning() && iterations < maxIterations) {
-            // The AND-gate on LOCKED normally requires the elapsed clock to corroborate the
-            // wall clock, guarding against a user winding the wall clock forward to skip a
-            // lock early. That guard is meaningless here once a reboot has been detected:
-            // the elapsed clock was reset by the reboot itself and has no data for phases
-            // that finished before it, so wall-clock alone is authoritative for this pass.
-            val hasTimePassed = if (phase == Phase.LOCKED && !rebooted) {
-                nowWall >= virtualNowWall && nowElapsed >= virtualNowElapsed
-            } else {
-                nowWall >= virtualNowWall || nowElapsed >= virtualNowElapsed
+            var dueForTransition = false
+            var transitionAtWall = nowWall
+            var transitionAtElapsed = nowElapsed
+
+            when (phase) {
+                Phase.FREE -> {
+                    // FREE remains a pure wall-clock grace period: nothing is blocked yet
+                    // during FREE, so "usage of a monitored app" isn't meaningful to gate it
+                    // on. Chains through virtual deadlines exactly as LOCKED does, below.
+                    dueForTransition = if (!rebooted) {
+                        nowWall >= virtualNowWall && nowElapsed >= virtualNowElapsed
+                    } else {
+                        nowWall >= virtualNowWall || nowElapsed >= virtualNowElapsed
+                    }
+                    transitionAtWall = virtualNowWall
+                    transitionAtElapsed = virtualNowElapsed
+                }
+                Phase.ALLOWED -> {
+                    // Usage accounting happens here, every time this phase is (re-)evaluated
+                    // within a catch-up pass — not just once per tick() call — so a phase
+                    // entered mid-catch-up (e.g. LOCKED -> ALLOWED partway through a long
+                    // stall) still correctly accounts for real usage over the rest of that
+                    // same stall in a single tick() call, rather than needing a second call
+                    // to notice. Real elapsed time is only deducted from the budget if a
+                    // monitored app is in front right now; otherwise the budget doesn't move.
+                    val delta = (nowElapsed - lastUsageAccountedElapsed).coerceAtLeast(0L)
+                    lastUsageAccountedElapsed = nowElapsed
+                    if (isUsingMonitoredApp()) {
+                        usableRemainingMs = (usableRemainingMs - delta).coerceAtLeast(0L)
+                    }
+                    dueForTransition = usableRemainingMs <= 0L
+                }
+                Phase.LOCKED -> {
+                    // The AND-gate normally requires the elapsed clock to corroborate the
+                    // wall clock, guarding against a user winding the wall clock forward to
+                    // skip a lock early. That guard is meaningless once a reboot has been
+                    // detected: the elapsed clock was reset by the reboot itself and has no
+                    // data for phases that finished before it, so wall-clock alone is
+                    // authoritative for this pass.
+                    dueForTransition = if (!rebooted) {
+                        nowWall >= virtualNowWall && nowElapsed >= virtualNowElapsed
+                    } else {
+                        nowWall >= virtualNowWall || nowElapsed >= virtualNowElapsed
+                    }
+                    transitionAtWall = virtualNowWall
+                    transitionAtElapsed = virtualNowElapsed
+                }
+                Phase.IDLE -> {}
             }
-            if (!hasTimePassed) break
+
+            if (!dueForTransition) break
             changed = true
-            transitionNext(context, virtualNowWall, virtualNowElapsed)
+            transitionNext(context, transitionAtWall, transitionAtElapsed)
             virtualNowWall = phaseEndTimeWall
             virtualNowElapsed = phaseEndTimeElapsed
             iterations++

@@ -32,6 +32,7 @@ class ParentalAppPickerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityParentalAppPickerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         familyId = intent.getStringExtra(EXTRA_FAMILY_ID)
         syncEngine = SyncEngine(this)

@@ -5,6 +5,7 @@ import android.util.Log
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeout
 import java.security.SecureRandom
 
 /**
@@ -24,6 +25,11 @@ object PairingManager {
     private const val PAIRING_CODE_LENGTH = 6
     private const val PAIRING_TTL_MS = 5 * 60 * 1000L // 5 minutes
 
+    /** Firestore write Tasks don't resolve until the server ACKs, even with offline persistence
+     *  enabled — offline, an unwrapped .await() here suspends forever, leaving the caller's UI
+     *  stuck on a permanent loading spinner with no way to fail. */
+    private const val FIRESTORE_OP_TIMEOUT_MS = 10_000L
+
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
     /**
@@ -41,48 +47,58 @@ object PairingManager {
      */
     suspend fun generatePairingCode(childUid: String): Result<Pair<String, String>> {
         return try {
-            // Create the family document.
-            val familyRef = firestore.collection("families").document()
-            val familyId = familyRef.id
-            val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}"
+            withTimeout(FIRESTORE_OP_TIMEOUT_MS) {
+                // Create the family document.
+                val familyRef = firestore.collection("families").document()
+                val familyId = familyRef.id
+                val deviceName = "${Build.MANUFACTURER} ${Build.MODEL}"
 
-            familyRef.set(mapOf(
-                "childUid" to childUid,
-                "parentUid" to null,
-                "childDeviceName" to deviceName,
-                "createdAt" to FieldValue.serverTimestamp()
-            )).await()
+                familyRef.set(mapOf(
+                    "childUid" to childUid,
+                    "parentUid" to null,
+                    "childDeviceName" to deviceName,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )).await()
 
-            // Create the initial config subcollection.
-            familyRef.collection("config").document("current").set(mapOf(
-                "enabled" to false,
-                "configVersion" to 0,
-                "updatedAt" to FieldValue.serverTimestamp()
-            )).await()
+                // Create the initial config subcollection.
+                familyRef.collection("config").document("current").set(mapOf(
+                    "enabled" to false,
+                    "configVersion" to 0,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )).await()
 
-            // Create the initial status subcollection.
-            familyRef.collection("status").document("current").set(mapOf(
-                "consumedEpochDay" to 0,
-                "lastSeen" to FieldValue.serverTimestamp(),
-                "syncState" to "SYNCED",
-                "accessibilityHealthy" to true
-            )).await()
+                // Create the initial status subcollection.
+                // accessibilityHealthy defaults optimistic here (no real status pushed yet) — the
+                // first real pushStatus() call overwrites it with TimerState's actual value.
+                familyRef.collection("status").document("current").set(mapOf(
+                    "consumedEpochDay" to 0,
+                    "lastSeen" to FieldValue.serverTimestamp(),
+                    "accessibilityHealthy" to true
+                )).await()
 
-            // Create the pairing code.
-            val code = generateCode()
-            val pairingRef = firestore.collection("pairing").document(code)
-            pairingRef.set(mapOf(
-                "familyId" to familyId,
-                "parentUid" to null,
-                "createdAt" to FieldValue.serverTimestamp(),
-                "expiresAt" to com.google.firebase.Timestamp(
-                    java.util.Date(System.currentTimeMillis() + PAIRING_TTL_MS)
-                ),
-                "consumed" to false
-            )).await()
+                // Create the pairing code.
+                val code = generateCode()
+                val pairingRef = firestore.collection("pairing").document(code)
+                pairingRef.set(mapOf(
+                    "familyId" to familyId,
+                    "parentUid" to null,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "expiresAt" to com.google.firebase.Timestamp(
+                        java.util.Date(System.currentTimeMillis() + PAIRING_TTL_MS)
+                    ),
+                    "consumed" to false
+                )).await()
 
-            Log.i(TAG, "Pairing code generated")
-            Result.success(Pair(familyId, code))
+                // Track the currently-issued code on the family doc so a later regenerate/unpair
+                // can delete this SPECIFIC doc by direct ID — the pairing collection's rules
+                // deliberately grant no `list` access (to block enumeration/harvesting of pending
+                // codes), so a "query by familyId" cleanup isn't something the rules will ever
+                // allow, by design. A known-ID pointer is the only safe way to target it.
+                familyRef.update("currentPairingCode", code).await()
+
+                Log.i(TAG, "Pairing code generated")
+                Result.success(Pair(familyId, code))
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to generate pairing code", e)
             Result.failure(e)
@@ -97,17 +113,37 @@ object PairingManager {
      */
     suspend fun regeneratePairingCode(familyId: String): Result<String> {
         return try {
-            val code = generateCode()
-            firestore.collection("pairing").document(code).set(mapOf(
-                "familyId" to familyId,
-                "parentUid" to null,
-                "createdAt" to FieldValue.serverTimestamp(),
-                "expiresAt" to com.google.firebase.Timestamp(
-                    java.util.Date(System.currentTimeMillis() + PAIRING_TTL_MS)
-                ),
-                "consumed" to false
-            )).await()
-            Result.success(code)
+            withTimeout(FIRESTORE_OP_TIMEOUT_MS) {
+                val familyRef = firestore.collection("families").document(familyId)
+
+                // Delete the previously-issued code (if any) before minting a new one — without
+                // this, a child bouncing off this screen and hitting "Get a new code" repeatedly
+                // left every prior unclaimed code behind forever (each is 5-min TTL but never
+                // itself deleted). Best-effort: if this specific delete fails for some reason,
+                // still proceed with issuing a working new code rather than blocking on cleanup.
+                val previousCode = familyRef.get().await().getString("currentPairingCode")
+                if (previousCode != null) {
+                    try {
+                        firestore.collection("pairing").document(previousCode).delete().await()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to delete previous pairing code (non-fatal)", e)
+                    }
+                }
+
+                val code = generateCode()
+                firestore.collection("pairing").document(code).set(mapOf(
+                    "familyId" to familyId,
+                    "parentUid" to null,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "expiresAt" to com.google.firebase.Timestamp(
+                        java.util.Date(System.currentTimeMillis() + PAIRING_TTL_MS)
+                    ),
+                    "consumed" to false
+                )).await()
+                familyRef.update("currentPairingCode", code).await()
+
+                Result.success(code)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to regenerate pairing code", e)
             Result.failure(e)
@@ -175,6 +211,20 @@ object PairingManager {
     suspend fun unpair(familyId: String): Result<Unit> {
         return try {
             val familyRef = firestore.collection("families").document(familyId)
+
+            // Clean up the family's pairing code (claimed or not — either way it's dead once
+            // unpaired) by its tracked ID. The pairing collection's rules grant no `list` access
+            // (enumeration is deliberately blocked), so this direct-by-ID delete is the only safe
+            // way to reach it; best-effort so a failure here doesn't block the rest of unpair.
+            val currentCode = familyRef.get().await().getString("currentPairingCode")
+            if (currentCode != null) {
+                try {
+                    firestore.collection("pairing").document(currentCode).delete().await()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to delete pairing code during unpair (non-fatal)", e)
+                }
+            }
+
             deleteCollection(familyRef.collection("config").document("current").collection("apps"))
             familyRef.collection("config").document("current").delete().await()
             familyRef.collection("status").document("current").delete().await()

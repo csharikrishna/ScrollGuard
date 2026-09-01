@@ -30,6 +30,7 @@ class AppPickerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityAppPickerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         repository = DataRepository.getInstance(this)
         setSupportActionBar(binding.toolbar)

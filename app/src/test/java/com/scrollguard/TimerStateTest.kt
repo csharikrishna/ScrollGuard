@@ -89,6 +89,7 @@ class TimerStateTest {
         TimerState.freeDuration = 1L
         TimerState.lockDuration = 1L
         TimerState.allowDuration = 1L
+        TimerState.monitoredApps.add("com.instagram.android")
         TimerState.start(context)
 
         // FREE -> LOCKED
@@ -101,10 +102,14 @@ class TimerStateTest {
         assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
         assertEquals(0, TimerState.cycleCount)
 
-        // ALLOWED -> LOCKED (this is the point a cycle counts as completed)
+        // ALLOWED -> LOCKED only once the monitored app has actually been used for the full
+        // allowed duration (this is now usage-metered, not clock-based) -- this is the point
+        // a cycle counts as completed.
+        TimerState.currentForegroundPackage = "com.instagram.android"
         advanceClocks(1); TimerState.tick(context)
         assertEquals(TimerState.Phase.LOCKED, TimerState.phase)
         assertEquals(1, TimerState.cycleCount)
+        TimerState.currentForegroundPackage = null
     }
 
     @Test
@@ -217,7 +222,11 @@ class TimerStateTest {
         assertFalse(TimerState.isAppBlocked("com.instagram.android"))
 
         advanceClocks(1); TimerState.tick(context) // -> ALLOWED
+        // Simulate actually using the monitored app during ALLOWED so its usable budget
+        // depletes and the window can end.
+        TimerState.currentForegroundPackage = "com.instagram.android"
         advanceClocks(1); TimerState.tick(context) // -> LOCKED again (new lock cycle)
+        TimerState.currentForegroundPackage = null
 
         assertTrue(
             "a dismiss from a previous lock cycle must not bypass a later one",
@@ -408,68 +417,178 @@ class TimerStateTest {
     // ---- Self-healing catch-up: correctness must not depend on a live tick loop ----
 
     @Test
-    fun tick_selfHealsMultipleMissedTransitions_whenCalledOnceAfterLongStall() {
+    fun tick_selfHealsMissedTransitions_butStopsAtAllowed_whenAppWasNeverUsed() {
         // Reproduces the real bug behind the user's report: BlockerAccessibilityService makes
         // its block/allow decision by calling tick() directly (not load()), and previously
-        // tick() only ever advanced ONE phase per call. TimerService's 1-second Handler loop is
-        // what's *supposed* to keep calling tick() often enough that this never matters — but
-        // Android does not guarantee that loop keeps firing (Doze mode, App Standby, an OEM
-        // background-kill). This simulates that loop having been stalled across THREE phase
-        // boundaries (FREE->LOCKED->ALLOWED->LOCKED) with zero tick() calls in between, then
-        // makes exactly ONE tick() call — exactly what happens when the user finally opens the
-        // monitored app after the stall. A single call must fully resolve to the phase that
-        // matches real elapsed time, not just advance one step and leave the rest stale.
+        // tick() only ever advanced ONE phase per call, and ALLOWED's window expired purely on
+        // the clock regardless of actual usage. TimerService's 1-second Handler loop is what's
+        // *supposed* to keep calling tick() often enough that gaps never matter — but Android
+        // does not guarantee that loop keeps firing (Doze mode, App Standby, an OEM
+        // background-kill). This simulates that loop having been stalled across the FREE->LOCKED
+        // and LOCKED->ALLOWED boundaries, with zero tick() calls and the monitored app never in
+        // the foreground, then makes exactly ONE tick() call. The two purely clock-based
+        // transitions must still resolve correctly, but the chain must NOT then fall through
+        // ALLOWED->LOCKED, since nothing has actually used the monitored app to deplete that
+        // window's budget — it must land in ALLOWED and stay there.
         TimerState.freeDuration = 1L
         TimerState.lockDuration = 1L
         TimerState.allowDuration = 1L
         TimerState.start(context) // FREE, deadline at +1s
 
-        advanceClocks(3) // 3s pass with NO tick() calls at all -- the simulated stall
+        advanceClocks(3) // 3s pass with NO tick() calls and no usage at all -- the stall
 
-        TimerState.tick(context) // the single check on app-open, post-stall
+        TimerState.tick(context) // the single check post-stall
 
         assertEquals(
-            "a single tick() after a long stall must land on the phase that matches real " +
-                "elapsed time (FREE->LOCKED->ALLOWED->LOCKED), not stop after one transition",
-            TimerState.Phase.LOCKED,
+            "with no usage recorded, catch-up must resolve the clock-based FREE->LOCKED->ALLOWED " +
+                "chain but stop there -- ALLOWED must not expire on the clock alone",
+            TimerState.Phase.ALLOWED,
             TimerState.phase
         )
-        assertEquals(
-            "the ALLOWED->LOCKED transition midway through the stall must still have been " +
-                "counted as a completed cycle",
-            1,
-            TimerState.cycleCount
-        )
+        assertEquals(0, TimerState.cycleCount)
     }
 
     @Test
-    fun unlockedWindowNotOpened_stillGetsFullDuration_whenNextCheckedLate() {
-        // Directly tests the user's reported fear: does NOT opening the monitored app during an
-        // unlocked (ALLOWED) window cause the next cycle to "restart", shrink, or get stuck? Each
-        // phase's duration is derived solely from configured duration + elapsed time, never from
-        // whether the app was actually opened during it -- this proves that invariant holds even
-        // when the very first check after the gap happens late, well into a later phase.
+    fun tick_selfHealsMissedTransitions_cascadesThroughAllowed_whenAppWasActuallyUsedThroughout() {
+        // Same stalled-tick-loop shape as above, but this time the monitored app genuinely was
+        // in the foreground for the whole gap (e.g. the user opened it right as the loop
+        // stalled). The ALLOWED window's budget must be depleted by that real usage and the
+        // chain must continue on into the next LOCKED, counting a completed cycle -- proving the
+        // fix doesn't just freeze ALLOWED unconditionally, only when genuinely unused.
+        TimerState.freeDuration = 1L
+        TimerState.lockDuration = 1L
+        TimerState.allowDuration = 1L
+        TimerState.monitoredApps.add("com.instagram.android")
+        TimerState.start(context) // FREE, deadline at +1s
+
+        TimerState.currentForegroundPackage = "com.instagram.android"
+        advanceClocks(3) // 3s pass with NO tick() calls, app in foreground the whole time
+
+        TimerState.tick(context) // the single check post-stall
+
+        assertEquals(
+            "with the monitored app genuinely in the foreground the whole time, the chain must " +
+                "cascade all the way through ALLOWED into the next LOCKED",
+            TimerState.Phase.LOCKED,
+            TimerState.phase
+        )
+        assertEquals(1, TimerState.cycleCount)
+        TimerState.currentForegroundPackage = null
+    }
+
+    @Test
+    fun unusedAllowedWindow_doesNotExpire_evenWhenNextCheckedMuchLater() {
+        // This is the core fix. Previously, ALLOWED's usable time was purely clock-based and
+        // expired whether or not the user ever opened the monitored app during it -- a reported
+        // "odd/even minutes" alternation with no relationship to actual usage. Now, ALLOWED only
+        // depletes while a monitored app is actually in the foreground. Not opening it at all --
+        // even across a long real-time gap, and even when the first check after that gap happens
+        // very late -- must never cause the window to expire or the remaining time to shrink.
         TimerState.freeDuration = 5L
         TimerState.lockDuration = 5L
         TimerState.allowDuration = 5L
+        TimerState.monitoredApps.add("com.instagram.android")
         TimerState.start(context) // FREE, 0-5s
 
         advanceClocks(5); TimerState.tick(context) // -> LOCKED, 5-10s
         assertEquals(TimerState.Phase.LOCKED, TimerState.phase)
 
-        // The user never opens the monitored app during this LOCKED phase or the ALLOWED
-        // window that follows it -- simulate by not calling tick() again until well past both,
-        // into the next LOCKED phase (15-20s).
-        advanceClocks(11)
-        TimerState.tick(context) // the first check since -- e.g. user opens the app at last
+        advanceClocks(5); TimerState.tick(context) // -> ALLOWED at t=10s, budget = 5s
+        assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
+
+        // The user never opens the monitored app -- simulate a long real-time gap with no
+        // usage and no tick() calls, then check very late.
+        advanceClocks(30)
+        TimerState.tick(context)
 
         assertEquals(
-            "must reflect the actual configured cycle position at the real current time -- " +
-                "the skipped ALLOWED window must not have been shortened or the cycle restarted",
-            TimerState.Phase.LOCKED,
+            "an ALLOWED window that was never actually used must not expire just because a " +
+                "lot of clock time passed",
+            TimerState.Phase.ALLOWED,
             TimerState.phase
         )
+        assertEquals(
+            "the unused window's remaining budget must still be fully intact",
+            5L,
+            TimerState.getRemainingSeconds()
+        )
+        assertEquals(0, TimerState.cycleCount)
+    }
+
+    @Test
+    fun allowedWindow_depletesOnlyWhileMonitoredAppIsInForeground_andBanksWhenNot() {
+        TimerState.freeDuration = 1L
+        TimerState.lockDuration = 1L
+        TimerState.allowDuration = 4L
+        TimerState.monitoredApps.add("com.instagram.android")
+        TimerState.start(context)
+
+        advanceClocks(1); TimerState.tick(context) // -> LOCKED
+        advanceClocks(1); TimerState.tick(context) // -> ALLOWED, budget = 4s
+        assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
+
+        // Use the monitored app for 2 of the 4 allowed seconds...
+        TimerState.currentForegroundPackage = "com.instagram.android"
+        advanceClocks(2); TimerState.tick(context)
+        assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
+        assertEquals(2L, TimerState.getRemainingSeconds())
+
+        // ...then stop using it. The remaining 2 seconds must stay banked, not keep draining
+        // just because more clock time passes.
+        TimerState.currentForegroundPackage = null
+        advanceClocks(10); TimerState.tick(context)
+        assertEquals(
+            "remaining budget must freeze once the monitored app leaves the foreground",
+            TimerState.Phase.ALLOWED,
+            TimerState.phase
+        )
+        assertEquals(2L, TimerState.getRemainingSeconds())
+
+        // Resume using it -- the remaining 2 seconds should deplete and then lock.
+        TimerState.currentForegroundPackage = "com.instagram.android"
+        advanceClocks(2); TimerState.tick(context)
+        assertEquals(TimerState.Phase.LOCKED, TimerState.phase)
         assertEquals(1, TimerState.cycleCount)
+        TimerState.currentForegroundPackage = null
+    }
+
+    @Test
+    fun freePhase_remainsClockBased_unaffectedByForegroundApp() {
+        // FREE is a one-time initial grace period before anything is blocked yet, so it
+        // deliberately stays clock-based, unlike ALLOWED -- "usage of a monitored app" isn't a
+        // meaningful concept to gate it on. No monitored app is ever put in the foreground here,
+        // yet FREE must still expire exactly on schedule.
+        TimerState.freeDuration = 2L
+        TimerState.lockDuration = 60L
+        TimerState.start(context)
+
+        advanceClocks(2); TimerState.tick(context)
+
+        assertEquals(TimerState.Phase.LOCKED, TimerState.phase)
+    }
+
+    @Test
+    fun usableRemainingMs_survivesProcessRestart_withoutDepletingFromElapsedTimeAlone() {
+        TimerState.freeDuration = 1L
+        TimerState.lockDuration = 1L
+        TimerState.allowDuration = 10L
+        TimerState.monitoredApps.add("com.instagram.android")
+        TimerState.start(context)
+
+        advanceClocks(1); TimerState.tick(context) // -> LOCKED
+        advanceClocks(1); TimerState.tick(context) // -> ALLOWED, budget = 10s
+        assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
+
+        // Simulate the process dying and a fresh load() picking persisted state back up, with
+        // real time having passed but the monitored app never in the foreground meanwhile.
+        TimerState.load(context)
+
+        assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
+        assertEquals(
+            "reloading persisted state must not itself drain the usable budget",
+            10L,
+            TimerState.getRemainingSeconds()
+        )
     }
 
     @Test

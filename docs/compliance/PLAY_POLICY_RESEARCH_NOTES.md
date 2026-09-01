@@ -1,0 +1,84 @@
+Google Play Policy Research — ScrollGuard Compliance Audit
+Verified against live official pages on 2026-08-31. Google Help Center pages generally do not display a visible "last updated" date to a fetcher (only the developer.android.com service-types page showed one). Noted per item.
+
+1. AccessibilityService API policy — declaration/disclosure for non-accessibility-tool apps
+Quotes (from support.google.com/googleplay/android-developer/answer/10964491 "Use of the AccessibilityService API," and answer/16558241 "Permissions and APIs that Access Sensitive Information"):
+
+Only services "designed to help people with disabilities access their device or overcome challenges stemming from their disabilities are eligible to declare that they are accessibility tools" via isAccessibilityTool. Qualifying examples given: screen readers, switch-based input, voice-based input, braille-access systems. Explicitly non-qualifying examples: "antivirus software, automation tools, assistants, monitoring apps, cleaners, password managers, and launchers."
+Apps that are not accessibility tools must complete an accessibility declaration in Play Console, and must "implement a clear in-app disclosure explaining data access and use, and obtain affirmative user consent." The disclosure must appear "within the app itself" (not only in the app description, website, or privacy policy), during normal usage (not buried in a settings menu), and requires "affirmative user action for consent."
+A newer clause (current on the live page as of this fetch): "Any use of the Accessibility API that enables an app to autonomously initiate, plan, and execute actions or decisions is strictly prohibited," but "this does not prohibit deterministic, rule-based automation, where behavior follows a static, human-defined script (for example, 'If Trigger X occurs, perform Action Y')."
+No page found contains a formally titled "acceptable use cases" list. "App blocking," "digital wellbeing," and "parental control" do not appear by name in either the qualifying or non-qualifying examples on any fetched page.
+Source: https://support.google.com/googleplay/android-developer/answer/10964491?hl=en ; https://support.google.com/googleplay/android-developer/answer/16558241?hl=en (no visible date stamp)
+
+Assessment: ScrollGuard's accessibility use (reading foreground package name only, no text/content reading, no gestures) is not disability-support and could not be declared isAccessibilityTool=true (matches the app's stated non-declaration). It would fall under the "not accessibility tool" path requiring the Play Console accessibility declaration plus a separate in-app prominent disclosure with affirmative consent. The app's rule-based blocking logic plausibly fits the "deterministic, rule-based automation" carve-out language rather than the prohibited "autonomous action" category, but this is Google's framing, not a determination — whoever compares this against the code should verify an in-app prominent-disclosure/consent screen actually exists for the AccessibilityService use, separate from any general privacy-policy notice.
+
+⚠️ A third-party blog claim of a "January 28, 2026 enforcement date" for stricter AccessibilityService review and RPA prohibitions could not be confirmed on the official Preview page (answer/16909972), which only previews Location (unrelated) and Contacts policy changes (effective Jan 27, 2027). Treat that specific date claim as unverified/likely inaccurate.
+
+2. Preventing uninstall/disabling via AccessibilityService or Device Admin — parental-control carve-out
+Quote (from answer/16558241, AccessibilityService prohibited-uses section): the API must not be used to "change user settings without their permission or prevent the ability for users to disable or uninstall any app" — unless "authorized by a parent or guardian through a parental control app or by authorized administrators through enterprise management software."
+
+Source: https://support.google.com/googleplay/android-developer/answer/16558241?hl=en (no visible date stamp)
+
+Assessment: This is a direct, explicit carve-out for parent-authorized parental-control apps distinguishing them from general apps — directly relevant to ScrollGuard's parental-control mode. Two notes for the code reviewer: (a) this carve-out is framed around the AccessibilityService, not independently around Device Admin — I found no separate Google Play policy page specifically addressing Device Admin API used to block uninstall (the Device and Network Abuse policy page, answer/9888379, contains no uninstall-prevention language at all); (b) as described, ScrollGuard's AccessibilityService does not appear to block uninstallation at all (it only detects foreground app and blocks app usage during a lock period) — so this carve-out may not even be the operative one; and the Device Admin "Strict Mode" feature is described as personal-only (not wired into parental pairing) and requests an empty <uses-policies/>, so its only effect is generic OS uninstall friction, not a targeted "prevent disabling" mechanism — someone should confirm whether Google would view that mechanism as within or outside this policy's scope at all.
+
+3. Families Policy — child-directed / mixed-audience determination and declaration requirements
+Quotes (from answer/9893335 "Google Play Families Policies" and answer/9867159 "Manage target audience and app content settings"):
+
+"Google Play reserves the right to conduct its own review of the app information that you provide to determine whether the target audience that you disclose is accurate," including assessment of "imagery and terminology in your app that could be considered targeting children."
+Google categorizes apps by declared target audience into groups (children only; children and older users — i.e., mixed audience; or older users only), each with age-tier sub-selections (5 and under, 6–8, 9–12, 13–15, 16–17, 18+).
+Developers "should only select more than one age group for your app's target audience if you have designed your app for and ensured that your app is appropriate for users within the selected age group(s)" — i.e., mixed-audience declaration is only appropriate if the app is actually designed/appropriate for both children and adults, not merely used by both.
+Mixed-audience apps must: implement a "neutral age screen," restrict ads shown to children to Families Self-Certified Ads SDKs only, and must not transmit "AAID, SIM Serial, Build Serial, BSSID, MAC, SSID, IMEI, and/or IMSI from children or users of unknown age."
+For child users, "any collection of personal and sensitive information from children, such as name or e-mail address, must be disclosed and should be collected with parental consent if required."
+Source: https://support.google.com/googleplay/android-developer/answer/9893335?hl=en ; https://support.google.com/googleplay/android-developer/answer/9867159?hl=en (no visible date stamp on either)
+
+Assessment: ScrollGuard's core Focus Timer feature is general self-discipline (not child-directed), while the parental-control feature is explicitly parent-facing (the parent, not the child, configures it via email/password auth) with a child device operating anonymously/passively. Under Google's framework, target audience is about who the app is designed for and marketed to, not merely "involves a child's device somewhere in the flow" — the child does not consent, log in with identifying info, or actively use the app as a target-audience "user" in the policy sense the same way a game aimed at kids would. Someone should verify: (a) the correct target-audience declaration is likely "adults" (parents are the actual app users/decision-makers) rather than "mixed audience," since mixed-audience triggers stricter ad-SDK and device-identifier rules; but (b) if child device name / usage data is collected and that data is considered "from a child," verify no restricted identifiers (AAID, IMEI, etc.) are transmitted from the child's device, and that child data collection/consent handling (parent-initiated, not child-initiated) is documented in the privacy policy.
+
+4. Data Safety section requirements
+Quotes (from answer/10787469 "Provide information for Google Play's Data safety section"):
+
+All published apps must complete the Data safety form, disclosing collection/sharing/security practices, matching the privacy policy.
+Data categories include Personal info, Financial info, Location, Communications (emails/SMS/in-app messages), App activity, Web browsing, Health & fitness, and "Device or other IDs," defined as: "Identifiers that relate to an individual device, browser or app. For example, an IMEI number, MAC address, Widevine Device ID, Firebase installation ID, or advertising identifier."
+For each declared data type, developers specify whether it is collected and/or shared, whether processed ephemerally, and whether required or optional.
+Families-specific: "Apps that have children as a target audience must follow Google Play's Families policy requirements," and apps committed to the Families Policy may display a "Committed to follow the Play Families Policy" badge on their Data safety section — an additional disclosure/branding element, not a separately-shaped form.
+Source: https://support.google.com/googleplay/android-developer/answer/10787469?hl=en (no confirmed current "last updated" date; one changelog fragment referenced Dec 5, 2023 for an unrelated badge addition, so treat the page as having been updated multiple times since)
+
+Assessment: ScrollGuard collects parent email (Firebase Auth = Personal info: email), Firestore family/pairing data (App activity/Personal info), per-app usage/restriction data (App activity), device name (Device or other IDs — note "$MANUFACTURER $MODEL" is a device model string, not itself a hardware identifier like IMEI, but should still be reviewed against this category), plus Crashlytics/Analytics (App info & performance / App activity, generally "collected"). The reviewer should confirm the Play Console Data Safety form line items match all of these categories and that the "Firebase installation ID" example is accounted for if FCM/Firebase Analytics install IDs are used.
+
+5. User Data policy — account deletion (in-app + web)
+Quotes (from answer/13327111 "Understanding Google Play's app account deletion requirements"):
+
+Apps that "enable account creation" must "provide users with an in-app path to delete their app accounts and associated data," AND "provide a web link resource where users can request app account deletion and associated data deletion" without needing to reinstall the app.
+"Associated data" in scope for deletion includes "personal and sensitive user data, personally identifiable information, financial and payment information, authentication information, phonebook, contacts, device location, SMS and call-related data, health data" — essentially everything declared in the Data Safety section.
+Legitimate retention exceptions exist for "security, fraud prevention or regulatory compliance," but must be disclosed in the privacy policy.
+Exemptions: "Permanently private and enterprise device management apps"; non-mobile surfaces (TV/Wear) need only the web path.
+The Play Console Data Safety form includes mandatory "Data deletion" questions; incomplete/unresolved answers block publishing (enforced since April 15, 2024).
+Source: https://support.google.com/googleplay/android-developer/answer/13327111?hl=en (no visible date stamp)
+
+Assessment: ScrollGuard's parent accounts use Firebase email/password auth (account creation), so this policy applies to the parent side. Both an in-app deletion path and an external/web deletion-request resource are required, and deletion must cascade to associated Firestore data (family/pairing relationship, per-app restriction/usage data tied to that parent). The child's anonymous Firebase Auth identity is not a traditional "account" in the sense usually meant by this policy (no credentials, no user-facing account creation flow on the child side), but the reviewer should still confirm whether child-associated data gets deleted when the parent account/pairing is deleted, since "associated data" is defined broadly.
+
+6. Foreground service specialUse type — Android 14/15/16 requirements
+Quotes (from developer.android.com/develop/background-work/services/fgs/service-types, last-updated 2026-08-14 per page metadata):
+
+"specialUse" is "reserved... covers any valid foreground service use cases that aren't covered by the other foreground service types" — a catch-all, not a first choice.
+Declaration requires android:foregroundServiceType="specialUse", the FOREGROUND_SERVICE_SPECIAL_USE permission, and a mandatory <property> element: android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE with a free-form explanation string.
+"The use cases you provide are free-form text and are reviewed when you submit your app in the Google Play Console. You should provide enough information to let the reviewer understand why you need to use the specialUse type rather than a more specific foreground service type."
+Separately, support.google.com/googleplay/android-developer/answer/13392821 ("Understanding foreground service and full-screen intent requirements") states: "if your use case meets the other characteristics required for foreground service usage... you may declare the foreground service TYPE_SPECIAL_USE type," and "All foreground service types are subject to review," with compliance also required against the Device and Network Abuse policy.
+Source: https://developer.android.com/develop/background-work/services/fgs/service-types (dated 2026-08-14) ; https://support.google.com/googleplay/android-developer/answer/13392821?hl=en (no visible date)
+
+Assessment: specialUse is not formally "banned" or auto-rejected, but both Android and Play Console frame it as a last-resort declaration subject to case-by-case Play Console review, requiring a clear, specific PROPERTY_SPECIAL_USE_FGS_SUBTYPE justification. ScrollGuard's declared subtype description ("App usage timer and blocker") should be reviewed for whether it's specific/clear enough to survive reviewer scrutiny, and whether a more specific standard foreground service type (there is none obviously matching "app usage timer/blocker" among Android's standard types) genuinely doesn't apply — this is a documented review-risk area, not a guaranteed rejection.
+
+7. Play Console Accessibility declaration form process
+Quotes/paraphrase (from answer/10964491):
+
+Since November 3, 2021, apps targeting API 31+ that include an AccessibilityService must complete a policy declaration in Play Console as part of the release process.
+For non-tool declarations: describe the data accessed/collected via the API, explain how it's used/shared, and provide the required in-app disclosure/consent flow (a video demonstration of this flow is part of the submission in some flows per search-result summaries, though I could not independently re-verify the video-demo requirement against a primary quote beyond the initial fetch — flag this as needing re-confirmation directly in Play Console UI, since it's an in-console form not fully mirrored in help-center text).
+"If you change how your app uses this API, you must submit the form again with updated and accurate information."
+Google Play reviews core app functionality to confirm the permission/API is required for a supported use case; deceptive or non-declared use "may result in a suspension of your app and/or termination of your developer account."
+Source: https://support.google.com/googleplay/android-developer/answer/10964491?hl=en (no visible date stamp)
+
+Assessment: This confirms a mandatory, resubmit-on-change Play Console declaration process exists and applies to ScrollGuard's AccessibilityService use. Given the app was "recently trimmed" (per the task context) to remove flagIncludeNotImportantViews, this is exactly the kind of behavior change that would require re-submitting the accessibility declaration form with updated info — worth flagging to whoever manages the Play Console listing.
+
+Notes on verification gaps
+Could not find an official Google page confirming the "video demonstration" submission requirement in a primary quote (only in a secondary WebSearch-summarized snippet) — recommend confirming directly inside Play Console's App Content → Permissions declaration flow rather than relying on this document.
+Google Help Center pages generally do not expose a machine-visible "last updated" date; only the developer.android.com foreground-service-types page showed one (2026-08-14 UTC).
+The "January 28, 2026" AccessibilityService enforcement date circulating on third-party blogs is unverified against official Google sources as of this research and should not be treated as confirmed.

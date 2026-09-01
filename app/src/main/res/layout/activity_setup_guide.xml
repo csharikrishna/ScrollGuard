@@ -296,6 +296,82 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Row: Xiaomi/HyperOS Autostart — visibility set at runtime, Xiaomi-family devices
+                 only. Android has no public API to read this OEM-private setting's current
+                 state, so unlike the other rows this one can never show a real ✓ — it's an
+                 acknowledge-once nudge, not a verified check. -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardXiaomiAutostart"
+                style="@style/ScrollGuard.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+                        <TextView
+                            android:id="@+id/tvXiaomiAutostartCheck"
+                            android:layout_width="28dp"
+                            android:layout_height="28dp"
+                            android:gravity="center"
+                            android:textSize="18sp"
+                            android:textColor="@color/text_muted"
+                            tools:text="○" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_step_xiaomi_autostart_title"
+                            android:textColor="@color/text_primary"
+                            android:textStyle="bold"
+                            android:textSize="15sp"
+                            android:layout_marginStart="8dp" />
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/setup_guide_recommended_label"
+                            android:textColor="@color/warning"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:layout_marginEnd="4dp" />
+                        <ImageButton
+                            android:id="@+id/btnXiaomiAutostartInfo"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:src="@android:drawable/ic_menu_info_details"
+                            app:tint="@color/text_secondary"
+                            android:contentDescription="@string/cd_info" />
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/tvXiaomiAutostartStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp"
+                        android:layout_marginStart="36dp"
+                        android:layout_marginTop="2dp"
+                        tools:text="@string/setup_step_action_needed" />
+                    <Button
+                        android:id="@+id/btnXiaomiAutostartAction"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/setup_step_open_settings"
+                        android:textColor="@color/text_primary"
+                        app:strokeColor="@color/text_primary"
+                        android:layout_marginTop="12dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Row: Notifications (Android 13+ only, visibility set at runtime) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardNotifications"

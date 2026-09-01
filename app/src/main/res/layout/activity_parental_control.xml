@@ -347,6 +347,17 @@
                 android:layout_gravity="center"
                 android:layout_marginTop="16dp"
                 android:visibility="gone" />
+
+            <!-- Delete Account Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeleteAccountFromPairing"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/delete_my_account"
+                android:textColor="@color/error"
+                android:textAllCaps="false"
+                android:layout_marginTop="24dp" />
         </LinearLayout>
 
         <!-- Parent Dashboard -->
@@ -503,6 +514,16 @@
                 android:textColor="@color/error"
                 android:textAllCaps="false"
                 android:layout_marginTop="32dp" />
+
+            <!-- Delete Account Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnDeleteAccountFromDashboard"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/delete_my_account"
+                android:textColor="@color/error"
+                android:textAllCaps="false" />
         </LinearLayout>
 
         <!-- Child Status View (after pairing) -->
@@ -551,7 +572,7 @@
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:text="@string/unpair"
+                android:text="@string/request_unpair"
                 android:textColor="@color/error"
                 android:textAllCaps="false"
                 android:layout_marginTop="32dp" />

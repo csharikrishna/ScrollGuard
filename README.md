@@ -20,6 +20,15 @@
 
 ---
 
+## Documentation
+
+Project docs live under [`docs/`](docs/README.md) — audit history, the original product spec, and
+the Google Play/privacy/legal compliance workstream (`docs/compliance/`). The compliance
+workstream's active progress tracker is [`COMPLIANCE_PROGRESS.md`](COMPLIANCE_PROGRESS.md) at the
+repo root.
+
+---
+
 ## Download & Install
 
 The easiest way to get ScrollGuard is to download the pre-built APK from the Releases page.
@@ -247,6 +256,13 @@ These are platform constraints, not bugs to be fixed later:
 ScrollGuardFixed/
 ├── .github/workflows/
 │   └── android-ci.yml                   # Build + lint + test on push/PR; signed release on tags
+├── docs/                                # See docs/README.md for the full index
+│   ├── audits/prompts/                  # Audit/compliance prompts as given, verbatim
+│   ├── audits/reports/                  # Resulting audit progress logs and reports
+│   ├── product/                         # Original spec + build walkthrough
+│   └── compliance/                      # Play Store / privacy / legal readiness docs
+├── archives/                            # Superseded or stray generated files, kept not deleted
+├── COMPLIANCE_PROGRESS.md               # Active tracker for the compliance workstream (kept at root)
 ├── app/
 │   ├── schemas/                         # Room schema history (exportSchema=true), committed
 │   ├── proguard-rules.pro               # R8 keep/dontwarn rules for release minification

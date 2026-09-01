@@ -32,6 +32,7 @@ class UsageStatsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityUsageStatsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyEdgeToEdge(binding.root)
 
         repository = DataRepository.getInstance(this)
         setSupportActionBar(binding.toolbar)

@@ -61,7 +61,7 @@
             android:id="@+id/cbMonitored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            app:trackTint="@color/primary" />
+            app:trackTint="@color/switch_track_tint" />
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -8,7 +8,7 @@
          the global timer says. Shipping this entry point would let a parent configure a
          setting that silently does nothing. The code/Room table are kept intact; wiring
          per-group cycles into the timer engine is real, security-relevant work (see
-         PRODUCTION_READINESS.md) that deserves its own dedicated implementation + full
+         docs/audits/reports/PRODUCTION_READINESS.md) that deserves its own dedicated implementation + full
          re-verification pass rather than being bolted on here. -->
     <item
         android:id="@+id/action_groups"

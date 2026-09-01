@@ -127,6 +127,92 @@
                         android:textStyle="bold"
                         android:layout_marginTop="4dp"/>
 
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="@color/bg_surface_intense"
+                        android:layout_marginVertical="20dp"/>
+
+                    <!-- Discipline Score -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/discipline_score_label"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/tvDisciplineScore"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/primary"
+                                tools:text="92%"
+                                android:textSize="32sp"
+                                android:textStyle="bold"
+                                android:layout_marginTop="4dp"/>
+                        </LinearLayout>
+
+                        <ProgressBar
+                            android:id="@+id/progressDiscipline"
+                            style="?android:attr/progressBarStyleHorizontal"
+                            android:layout_width="80dp"
+                            android:layout_height="80dp"
+                            android:max="100"
+                            android:progress="92"
+                            android:progressDrawable="@drawable/bg_monogram"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Most Blocked Apps Card -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/top_blocked_apps"
+                android:textColor="@color/primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.2"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="16dp"/>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/ScrollGuard.Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp">
+
+                <LinearLayout
+                    android:id="@+id/layoutTopBlockedApps"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <TextView
+                        android:id="@+id/tvNoBlocks"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/no_blocks_yet"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp"
+                        android:gravity="center"
+                        android:padding="16dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
