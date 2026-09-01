@@ -360,6 +360,53 @@
                 android:layout_marginTop="24dp" />
         </LinearLayout>
 
+        <!-- Parent Family Hub (Multi-Child) -->
+        <LinearLayout
+            android:id="@+id/layoutFamilyHub"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/your_family"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp" />
+
+            <!-- List of paired children -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvFamilyHub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Pair Another Child Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPairAnotherChild"
+                style="@style/ScrollGuard.Button"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:text="@string/pair_another_child"
+                app:icon="@android:drawable/ic_menu_add"
+                app:iconGravity="textStart"
+                android:layout_marginBottom="16dp" />
+                
+            <!-- Sign Out Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnFamilyHubSignOut"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/sign_out"
+                android:textColor="@color/error"
+                android:textAllCaps="false" />
+        </LinearLayout>
+
         <!-- Parent Dashboard -->
         <LinearLayout
             android:id="@+id/layoutParentDashboard"

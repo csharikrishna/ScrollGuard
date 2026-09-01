@@ -218,6 +218,39 @@ class SyncEngine(private val context: Context) {
         }
     }
 
+    /**
+     * Reports an immediate, specific tamper signal (e.g. "the child removed Device Admin") to
+     * the parent, distinct from the generic staleness-based "child offline" detection in
+     * [ParentalControlActivity]. Staleness alone tells the parent *something* stopped reporting
+     * within ~10-15 minutes, with no reason; this gives an immediate, actionable reason the
+     * moment it happens, for the specific tamper events this app can actually observe on its own
+     * process before it's potentially killed. A targeted field `update()`, not the full `set()`
+     * [pushStatus] uses, so this doesn't race with or clobber a concurrent regular status push.
+     */
+    suspend fun pushTamperAlert(reason: String): Result<Unit> {
+        val config = parentalDao.getConfig() ?: return Result.failure(
+            Exception("Not paired — no tamper alert to push")
+        )
+        val familyId = config.familyId ?: return Result.failure(
+            Exception("No familyId in local config")
+        )
+        return try {
+            val statusRef = firestore.collection("families").document(familyId)
+                .collection("status").document("current")
+            statusRef.update(
+                mapOf(
+                    "lastTamperEvent" to reason,
+                    "lastTamperEventAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Log.w(TAG, "Tamper alert pushed: $reason")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to push tamper alert", e)
+            Result.failure(e)
+        }
+    }
+
     // ── Catalog: push child's app list to Firestore ─────────────────────
 
     /**

@@ -31,12 +31,56 @@ class SetupGuideActivity : AppCompatActivity() {
         private const val PREFS = "sg_setup"
         private const val KEY_HAS_SEEN_GUIDE = "has_seen_setup_guide"
         private const val KEY_REQUESTED_NOTIF_PERMISSION = "requested_notif_permission"
-        private const val KEY_XIAOMI_AUTOSTART_ACKNOWLEDGED = "xiaomi_autostart_acknowledged"
+        private const val KEY_OEM_BACKGROUND_ACKNOWLEDGED = "oem_background_acknowledged"
 
-        /** Xiaomi ships the same HyperOS/MIUI background-management stack under several brand
-         *  names (Xiaomi, Redmi, POCO) — all report one of these in Build.MANUFACTURER. */
-        private fun isXiaomiFamilyDevice(): Boolean =
-            Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")
+        /**
+         * OEMs with a documented history of aggressively killing background apps/services via
+         * their own extra battery-management layer, on top of (not instead of) Android's own
+         * REQUEST_IGNORE_BATTERY_OPTIMIZATIONS — see the DontKillMyApp project and this app's own
+         * README Reliability Notes. Each carries the best-effort direct-launch component for its
+         * OEM-specific settings screen; Android exposes no public API to read any of these
+         * settings' current state, so — same as the original Xiaomi-only version of this card —
+         * this can only ever be an acknowledge-once nudge, never a verified checkmark.
+         *
+         * Motorola is deliberately NOT included: it has no comparably well-documented separate
+         * background-management screen beyond stock Android's own battery optimization (already
+         * covered by the generic battery card above) — inventing a component that may not exist
+         * would violate this app's own "don't claim more than we can verify" rule more than it
+         * would help.
+         */
+        private enum class BackgroundManagementOem(
+            val manufacturers: Set<String>,
+            val componentPackage: String,
+            val componentClass: String,
+            val titleRes: Int,
+            val whyRes: Int,
+            val shortRes: Int,
+            val acknowledgedRes: Int,
+        ) {
+            XIAOMI(
+                setOf("xiaomi", "redmi", "poco"),
+                "com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity",
+                R.string.setup_step_xiaomi_autostart_title, R.string.setup_step_xiaomi_autostart_why,
+                R.string.setup_step_xiaomi_autostart_short, R.string.setup_step_xiaomi_autostart_acknowledged,
+            ),
+            SAMSUNG(
+                setOf("samsung"),
+                "com.samsung.android.lool", "com.samsung.android.sm.ui.battery.BatteryActivity",
+                R.string.setup_step_samsung_battery_title, R.string.setup_step_samsung_battery_why,
+                R.string.setup_step_samsung_battery_short, R.string.setup_step_samsung_battery_acknowledged,
+            ),
+            ONEPLUS(
+                setOf("oneplus"),
+                "com.oneplus.security", "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity",
+                R.string.setup_step_oneplus_battery_title, R.string.setup_step_oneplus_battery_why,
+                R.string.setup_step_oneplus_battery_short, R.string.setup_step_oneplus_battery_acknowledged,
+            ),
+        }
+
+        private fun detectBackgroundManagementOem(): BackgroundManagementOem? {
+            val manufacturer = Build.MANUFACTURER.lowercase()
+            return BackgroundManagementOem.entries.find { manufacturer in it.manufacturers }
+        }
 
         /** Whether the guide has ever been shown — used by MainActivity to decide whether to
          *  auto-launch it, so a returning user is never forced back through it repeatedly. */
@@ -91,11 +135,13 @@ class SetupGuideActivity : AppCompatActivity() {
             }
         }
 
-        binding.cardXiaomiAutostart.visibility = if (isXiaomiFamilyDevice()) View.VISIBLE else View.GONE
-        binding.btnXiaomiAutostartAction.setOnClickListener { openXiaomiAutostartSettings() }
-        binding.btnXiaomiAutostartInfo.setOnClickListener {
-            showInfoDialog(R.string.setup_step_xiaomi_autostart_title, R.string.setup_step_xiaomi_autostart_why) {
-                openXiaomiAutostartSettings()
+        val oem = detectBackgroundManagementOem()
+        binding.cardXiaomiAutostart.visibility = if (oem != null) View.VISIBLE else View.GONE
+        if (oem != null) {
+            binding.tvXiaomiAutostartTitle.setText(oem.titleRes)
+            binding.btnXiaomiAutostartAction.setOnClickListener { openOemBackgroundSettings(oem) }
+            binding.btnXiaomiAutostartInfo.setOnClickListener {
+                showInfoDialog(oem.titleRes, oem.whyRes) { openOemBackgroundSettings(oem) }
             }
         }
 
@@ -177,18 +223,20 @@ class SetupGuideActivity : AppCompatActivity() {
      * from there the user can generally still find Autostart under Battery saver / permissions,
      * even if this direct shortcut doesn't land exactly on it.
      */
-    private fun openXiaomiAutostartSettings() {
+    private fun openOemBackgroundSettings(oem: BackgroundManagementOem) {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putBoolean(KEY_XIAOMI_AUTOSTART_ACKNOWLEDGED, true).apply()
+            .edit().putBoolean(KEY_OEM_BACKGROUND_ACKNOWLEDGED, true).apply()
         val direct = Intent().apply {
-            component = android.content.ComponentName(
-                "com.miui.securitycenter",
-                "com.miui.permcenter.autostart.AutoStartManagementActivity"
-            )
+            component = android.content.ComponentName(oem.componentPackage, oem.componentClass)
         }
         try {
             startActivity(direct)
         } catch (e: Exception) {
+            // Same fallback as before generalizing this: the exact component is undocumented and
+            // can legitimately not exist on a given OEM software version — the app's own App Info
+            // screen is always real, and from there the user can generally still find the
+            // equivalent setting under Battery/permissions even if this shortcut doesn't land on
+            // it directly.
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:$packageName".toUri()))
         }
         refreshStatus()
@@ -294,17 +342,16 @@ class SetupGuideActivity : AppCompatActivity() {
         val batteryOk = pm.isIgnoringBatteryOptimizations(packageName)
         setRowState(binding.tvBatteryCheck, binding.tvBatteryStatus, binding.btnBatteryAction, batteryOk)
 
-        if (isXiaomiFamilyDevice()) {
-            // Android exposes no API to read MIUI/HyperOS's Autostart state — this can never be
-            // a real ✓, only "the user has been shown where to check." Don't claim more than
-            // that (see Issue #5's "don't silently claim protection is active when it isn't").
+        detectBackgroundManagementOem()?.let { oem ->
+            // Android exposes no API to read any of these OEM-private settings' current state —
+            // this can never be a real ✓, only "the user has been shown where to check." Don't
+            // claim more than that (see Issue #5's "don't silently claim protection is active
+            // when it isn't").
             val acknowledged = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getBoolean(KEY_XIAOMI_AUTOSTART_ACKNOWLEDGED, false)
-            binding.tvXiaomiAutostartStatus.text = if (acknowledged) {
-                getString(R.string.setup_step_xiaomi_autostart_acknowledged)
-            } else {
-                getString(R.string.setup_step_xiaomi_autostart_short)
-            }
+                .getBoolean(KEY_OEM_BACKGROUND_ACKNOWLEDGED, false)
+            binding.tvXiaomiAutostartStatus.text = getString(
+                if (acknowledged) oem.acknowledgedRes else oem.shortRes
+            )
         }
 
         val notifOk = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

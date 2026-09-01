@@ -592,6 +592,41 @@ class TimerStateTest {
     }
 
     @Test
+    fun usableRemainingMs_isBatchPersisted_soAKillMidWindowCannotReGrantUsedTime() {
+        // Regression test: usableRemainingMs was only ever written to disk on a phase
+        // *transition* until this was added, meaning a process/service kill mid-ALLOWED (the
+        // exact OEM background-kill scenario this app has to survive) would reload the value
+        // from the start of the window on the next load() -- silently re-granting whatever the
+        // child had already used. Verify the persisted value on disk actually reflects real
+        // usage partway through a window, not just the in-memory value.
+        TimerState.freeDuration = 1L
+        TimerState.lockDuration = 1L
+        TimerState.allowDuration = 30L
+        TimerState.monitoredApps.add("com.instagram.android")
+        TimerState.start(context)
+
+        advanceClocks(1); TimerState.tick(context) // -> LOCKED
+        advanceClocks(1); TimerState.tick(context) // -> ALLOWED, budget = 30s
+
+        // Use the monitored app past the batch-persist interval (15s).
+        TimerState.currentForegroundPackage = "com.instagram.android"
+        advanceClocks(20); TimerState.tick(context)
+        TimerState.currentForegroundPackage = null
+
+        assertEquals(TimerState.Phase.ALLOWED, TimerState.phase)
+        assertEquals(10L, TimerState.getRemainingSeconds()) // 30 - 20 = 10 in memory
+
+        val persistedMs = context.getSharedPreferences("sg_state", Context.MODE_PRIVATE)
+            .getLong("usableRemainingMs", -1L)
+        assertEquals(
+            "the depleted value must actually be written to disk within the batch-persist " +
+                "window, not only held in memory until the phase transitions",
+            10_000L,
+            persistedMs
+        )
+    }
+
+    @Test
     fun rapidRepeatedChecks_aroundPhaseTransition_transitionExactlyOnce() {
         // Simulates the accessibility service firing many times in quick succession (normal
         // behavior around any window-state change) right around a phase boundary. Repeated

@@ -11,6 +11,7 @@
 - **GENTLE / NUCLEAR Modes** — Gentle grants a temporary, per-app unlock window after you dismiss (default 60s) before locking again; Nuclear never offers a dismiss option. Neither mode can block the Home button or Recents — see [Nuclear Mode: What It Actually Guarantees](#nuclear-mode-what-it-actually-guarantees)
 - **Multi-App Monitoring** — Select any launchable installed app to block during lock phases
 - **Uninstall Protection** — Optional Device Admin prevents the app from being removed; toggling it off in-app actually revokes admin (not just a UI flag)
+- **PiP & Split-Screen Protected** — Lock screens explicitly disable Picture-in-Picture (PiP) and multi-window modes to prevent bypasses
 - **Survives Reboots** — Background service auto-restarts after device boot
 - **Accessibility Health Alerts** — If the OS or user disables the blocking service mid-session, you get a distinct high-priority notification rather than silent, undetected non-enforcement
 - **Usage Analytics** — Bar chart of time actually spent LOCKED per day (not total session time) and cycles completed
@@ -260,8 +261,8 @@ ScrollGuardFixed/
 │   ├── audits/prompts/                  # Audit/compliance prompts as given, verbatim
 │   ├── audits/reports/                  # Resulting audit progress logs and reports
 │   ├── product/                         # Original spec + build walkthrough
-│   └── compliance/                      # Play Store / privacy / legal readiness docs
-├── archives/                            # Superseded or stray generated files, kept not deleted
+│   └── compliance/                      # Play Store / privacy / legal readiness docs (privacy_policy, data_safety, store_listing)
+├── archives/                            # Superseded generated files (test_screenshots/, test_ui_dumps/)
 ├── COMPLIANCE_PROGRESS.md               # Active tracker for the compliance workstream (kept at root)
 ├── app/
 │   ├── schemas/                         # Room schema history (exportSchema=true), committed
@@ -273,34 +274,32 @@ ScrollGuardFixed/
 │       │   │   ├── BlockActivity.kt         # Fullscreen lock screen
 │       │   │   ├── PinActivity.kt           # Math puzzle admin gate
 │       │   │   ├── AppPickerActivity.kt     # App selector
-│       │   │   ├── AppPickerAdapter.kt      # RecyclerView adapter
 │       │   │   ├── UsageStatsActivity.kt    # Analytics screen
 │       │   │   ├── TimerState.kt            # Core state machine (singleton)
 │       │   │   ├── TimerService.kt          # Foreground timer service
 │       │   │   ├── BlockerAccessibilityService.kt  # App detection
+│       │   │   ├── SyncEngine.kt            # Real-time Firestore parental sync
 │       │   │   ├── AdminReceiver.kt         # Device admin receiver
 │       │   │   ├── BootReceiver.kt          # Boot-completed receiver
-│       │   │   ├── AccessibilityUtils.kt    # Shared accessibility-enabled check
-│       │   │   ├── TransitionUtil.kt        # SDK-aware activity transitions
 │       │   │   └── data/
 │       │   │       ├── AppDao.kt            # Room DAO
 │       │   │       ├── AppEntry.kt          # Monitored app entity
-│       │   │       ├── AppPickerItem.kt     # UI model for picker
 │       │   │       ├── UsageRecord.kt       # Usage analytics entity
 │       │   │       ├── DataRepository.kt    # Data access singleton
+│       │   │       ├── ParentalControlState.kt # Cache for parental limits
 │       │   │       └── ScrollGuardDatabase.kt  # Room database
 │       │   ├── res/
 │       │   │   ├── layout/                  # XML layouts
-│       │   │   ├── drawable*, mipmap*        # Icons (density-bucketed) and backgrounds
+│       │   │   ├── drawable*, mipmap*       # Icons (transparent background) and visuals
 │       │   │   ├── raw/                     # Bundled Lottie animations
-│       │   │   ├── values/, values-v27/     # Strings, themes, colors (+ API 27 theme override)
+│       │   │   ├── values/, values-v27/     # Strings, themes, colors
 │       │   │   └── xml/                     # Accessibility & admin config
-│       │   └── AndroidManifest.xml
+│       │   └── AndroidManifest.xml          # Declares PiP-disabled activities
 │       └── test/java/com/scrollguard/
 │           └── TimerStateTest.kt        # State machine + GENTLE-mode grace unit tests
 ├── build.gradle                         # Root build config
 ├── settings.gradle
-├── keystore.properties.sample           # Template for local release signing (see below)
+├── keystore.properties.sample           # Template for local release signing
 └── README.md
 ```
 

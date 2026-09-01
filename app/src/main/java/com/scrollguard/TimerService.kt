@@ -86,6 +86,14 @@ class TimerService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            "DISMISS_NOTIF" -> {
+                // If the user dismissed the notification manually, we stop the service to avoid zombie states.
+                // WorkManager will eventually wake us up if we are supposed to be running.
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                cancelHealthAlert()
+                stopSelf()
+                return START_NOT_STICKY
+            }
         }
 
         // FIX #8: Use FOREGROUND_SERVICE_TYPE_SPECIAL_USE on Android 14+ (API 34).
@@ -107,16 +115,6 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
-        // FIX #12: Wrapped in try/catch — Android 12+ restricts background
-        // foreground-service starts. BootReceiver handles cold-start recovery.
-        if (TimerState.isRunning()) {
-            try {
-                val restartIntent = Intent(this, TimerService::class.java).apply { action = "RESUME" }
-                startForegroundService(restartIntent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to restart service on destroy", e)
-            }
-        }
         super.onDestroy()
     }
 
@@ -164,11 +162,17 @@ class TimerService : Service() {
         // A single, unambiguous small icon communicates the health state instead of stacking
         // an emoji on top of the phase text — the icon changes, the text stays plain.
         val icon = if (healthy) android.R.drawable.ic_lock_idle_alarm else android.R.drawable.ic_dialog_alert
+        // Intent for when the user swipes away the notification (Android 14+)
+        val deleteIntent = PendingIntent.getService(
+            this, 1, Intent(this, TimerService::class.java).apply { action = "DISMISS_NOTIF" }, flags
+        )
+
         return NotificationCompat.Builder(this, CHANNEL)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(icon)
             .setContentIntent(open)
+            .setDeleteIntent(deleteIntent)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)

@@ -30,6 +30,8 @@ import com.scrollguard.parental.ParentalAppAdapter
 import com.scrollguard.parental.ParentalAuthManager
 import com.scrollguard.parental.SyncEngine
 import com.scrollguard.parental.SyncWorker
+import com.scrollguard.parental.FamilyHubAdapter
+import com.scrollguard.parental.FamilyHubItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -57,6 +59,7 @@ class ParentalControlActivity : AppCompatActivity() {
     private val firestore by lazy { FirebaseFirestore.getInstance() }
 
     private var appAdapter: ParentalAppAdapter? = null
+    private var familyHubAdapter: FamilyHubAdapter? = null
     private var pairingListener: ListenerRegistration? = null
     private var dashboardConfigListener: ListenerRegistration? = null
     private var dashboardAppsListener: ListenerRegistration? = null
@@ -164,7 +167,16 @@ class ParentalControlActivity : AppCompatActivity() {
 
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        binding.toolbar.setNavigationOnClickListener { finish() }
+        binding.toolbar.setNavigationOnClickListener {
+            if (binding.layoutParentDashboard.visibility == View.VISIBLE && currentConfig?.role == "parent") {
+                showFamilyHub()
+            } else if (binding.layoutParentPairing.visibility == View.VISIBLE && currentConfig?.role == "parent") {
+                // If they are paired but in pairing view, go back to Hub
+                if (currentConfig?.isPaired == true) showFamilyHub() else finish()
+            } else {
+                finish()
+            }
+        }
 
         pendingPairingCode = savedInstanceState?.getString(KEY_PENDING_PAIRING_CODE)
 
@@ -208,6 +220,21 @@ class ParentalControlActivity : AppCompatActivity() {
             }
         }
         binding.btnScanQr.setOnClickListener { requestCameraThenScan() }
+
+        // Family Hub
+        binding.rvFamilyHub.layoutManager = LinearLayoutManager(this)
+        familyHubAdapter = FamilyHubAdapter(
+            onItemClick = { item ->
+                showParentDashboard(item.familyId)
+            },
+            onEditClick = { item ->
+                promptRenameChild(item)
+            }
+        )
+        binding.rvFamilyHub.adapter = familyHubAdapter
+        
+        binding.btnPairAnotherChild.setOnClickListener { showParentPairingView() }
+        binding.btnFamilyHubSignOut.setOnClickListener { confirmDeleteAccount() }
 
         // Parent Dashboard
         binding.rvRestrictedApps.layoutManager = LinearLayoutManager(this)
@@ -330,8 +357,8 @@ class ParentalControlActivity : AppCompatActivity() {
                     }
                 } else if (config.role == "parent") {
                     if (ParentalAuthManager.isSignedIn()) {
-                        if (config.isPaired && config.familyId != null) {
-                            showParentDashboard(config.familyId)
+                        if (config.isPaired) {
+                            showFamilyHub()
                         } else {
                             showParentPairingView()
                         }
@@ -373,6 +400,7 @@ class ParentalControlActivity : AppCompatActivity() {
         binding.layoutParentPairing.visibility = View.GONE
         binding.layoutParentDashboard.visibility = View.GONE
         binding.layoutChildStatus.visibility = View.GONE
+        binding.layoutFamilyHub.visibility = View.GONE
     }
 
     private fun showLoading(loading: Boolean) {
@@ -626,7 +654,14 @@ class ParentalControlActivity : AppCompatActivity() {
             withContext(Dispatchers.Main) {
                 binding.progressAuth.visibility = View.GONE
                 if (result.isSuccess) {
-                    showParentPairingView()
+                    val uid = ParentalAuthManager.getCurrentUid()
+                    if (uid != null) {
+                        // We sign in as a parent, assume paired if we reach here
+                        val config = ParentalConfig(role = "parent", isPaired = true, parentUid = uid)
+                        lifecycleScope.launch(Dispatchers.IO) { parentalDao.upsertConfig(config) }
+                        currentConfig = config
+                    }
+                    showFamilyHub()
                 } else {
                     Toast.makeText(
                         this@ParentalControlActivity,
@@ -795,7 +830,7 @@ class ParentalControlActivity : AppCompatActivity() {
                     // (onChildPairedSuccessfully) — the parent previously got no equivalent
                     // confirmation at all, just a silent switch to the dashboard.
                     Toast.makeText(this@ParentalControlActivity, getString(R.string.child_paired_success), Toast.LENGTH_LONG).show()
-                    showParentDashboard(familyId)
+                    showFamilyHub()
                 } else {
                     Toast.makeText(
                         this@ParentalControlActivity,
@@ -808,6 +843,80 @@ class ParentalControlActivity : AppCompatActivity() {
     }
 
     // ── Parent Dashboard ────────────────────────────────────────────────
+
+    private fun promptRenameChild(item: FamilyHubItem) {
+        val input = android.widget.EditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setText(item.childDeviceName)
+            setSelection(item.childDeviceName.length)
+        }
+        val padding = (16 * resources.displayMetrics.density).toInt()
+        val container = android.widget.FrameLayout(this).apply {
+            setPadding(padding, padding / 2, padding, 0)
+            addView(input)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Rename Device")
+            .setView(container)
+            .setPositiveButton("Save") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty() && newName != item.childDeviceName) {
+                    showLoading(true)
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        try {
+                            firestore.collection("families").document(item.familyId)
+                                .update("childDeviceName", newName).await()
+                            withContext(Dispatchers.Main) {
+                                showLoading(false)
+                                showFamilyHub()
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                showLoading(false)
+                                Toast.makeText(
+                                    this@ParentalControlActivity,
+                                    getString(R.string.error_change_not_saved, friendlyErrorMessage(e)),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showFamilyHub() {
+        hideAllViews()
+        binding.layoutFamilyHub.visibility = View.VISIBLE
+        showLoading(true)
+        
+        val uid = ParentalAuthManager.getCurrentUid() ?: return
+        
+        firestore.collection("families")
+            .whereEqualTo("parentUid", uid)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                showLoading(false)
+                val items = querySnapshot.documents.mapNotNull { doc ->
+                    val fid = doc.id
+                    val deviceName = doc.getString("childDeviceName") ?: getString(R.string.child_device)
+                    FamilyHubItem(fid, deviceName)
+                }
+                
+                if (items.isEmpty()) {
+                    showParentPairingView()
+                } else {
+                    familyHubAdapter?.submitList(items)
+                }
+            }
+            .addOnFailureListener {
+                showLoading(false)
+                Toast.makeText(this, getString(R.string.error_sync_failed), Toast.LENGTH_SHORT).show()
+            }
+    }
 
     private fun showParentDashboard(familyId: String) {
         hideAllViews()
@@ -851,7 +960,12 @@ class ParentalControlActivity : AppCompatActivity() {
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot == null) return@addSnapshotListener
                 val accessibilityHealthy = snapshot.getBoolean("accessibilityHealthy") ?: true
-                updateChildConnectionStatus(snapshot.getTimestamp("lastSeen"), accessibilityHealthy)
+                updateChildConnectionStatus(
+                    snapshot.getTimestamp("lastSeen"),
+                    accessibilityHealthy,
+                    snapshot.getString("lastTamperEvent"),
+                    snapshot.getTimestamp("lastTamperEventAt")
+                )
 
                 @Suppress("UNCHECKED_CAST")
                 val consumedByPkg = snapshot.get("consumedByPackage") as? Map<String, Map<String, Any>>
@@ -997,9 +1111,29 @@ class ParentalControlActivity : AppCompatActivity() {
      * [accessibilityHealthy] mirrors TimerState.accessibilityHealthy from the child device (see
      * SyncEngine.pushStatus) — surfaced here so a parent can tell the enforcement mechanism
      * itself was disabled, distinct from the device simply being offline.
+     *
+     * [tamperEvent]/[tamperEventAt] (see SyncEngine.pushTamperAlert) report a specific event —
+     * e.g. Device Admin being removed — the moment it happens, rather than waiting for the
+     * generic ~10-15 minute staleness detection above to notice *something* stopped reporting
+     * with no stated reason. Shown only while it's the freshest thing we know about this device:
+     * compared against [lastSeen] rather than cleared server-side, so a tamper event is
+     * automatically superseded (and stops displaying) the moment any later regular status push
+     * succeeds — the same "derive honesty client-side from timestamps" approach this function
+     * already uses for staleness, rather than a flag that has to be remembered to be reset.
      */
-    private fun updateChildConnectionStatus(lastSeen: com.google.firebase.Timestamp?, accessibilityHealthy: Boolean) {
+    private fun updateChildConnectionStatus(
+        lastSeen: com.google.firebase.Timestamp?,
+        accessibilityHealthy: Boolean,
+        tamperEvent: String? = null,
+        tamperEventAt: com.google.firebase.Timestamp? = null
+    ) {
+        val tamperIsFreshest = tamperEventAt != null &&
+            (lastSeen == null || tamperEventAt.toDate().time > lastSeen.toDate().time)
         binding.tvChildStatus.text = when {
+            tamperIsFreshest -> when (tamperEvent) {
+                "device_admin_disabled" -> getString(R.string.child_tamper_device_admin_disabled)
+                else -> getString(R.string.child_tamper_generic)
+            }
             lastSeen == null -> getString(R.string.child_offline)
             System.currentTimeMillis() - lastSeen.toDate().time > STALE_THRESHOLD_MS ->
                 getString(

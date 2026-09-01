@@ -156,6 +156,8 @@
     <string name="child_connected_accessibility_disabled">Connected — Accessibility disabled, restrictions may not be enforced ⚠</string>
     <string name="child_last_seen_format">Last seen: %1$s</string>
     <string name="child_offline">Offline</string>
+    <string name="child_tamper_device_admin_disabled">⚠ Device Admin was removed on this device</string>
+    <string name="child_tamper_generic">⚠ A protection setting was changed on this device</string>
     <string name="restrictions_enabled">Restrictions ON</string>
     <string name="restrictions_disabled">Restrictions OFF</string>
     <string name="child_status_loading">Loading…</string>
@@ -264,6 +266,14 @@
     <string name="setup_step_xiaomi_autostart_short">Your phone may stop ScrollGuard in the background unless Autostart is on.</string>
     <string name="setup_step_xiaomi_autostart_why">Xiaomi phones have their own extra background-management setting, separate from Android\'s own battery settings, that can silently stop ScrollGuard from running in the background — which would let blocking quietly stop working without any warning.\n\nTo keep ScrollGuard protecting your apps when you\'re not actively using it, Xiaomi requires this setting.\n\nTap \"Open Settings\", find ScrollGuard in the Autostart list, and turn it on. ScrollGuard can\'t check whether this is actually on from inside the app — Android doesn\'t allow that — so please confirm it yourself in that list.\n\nWhile you\'re there: also check Xiaomi\'s battery saver setting for ScrollGuard and set it to \"No restrictions\" rather than the default, and make sure \"Close apps after N minutes of background activity\" is off for ScrollGuard specifically.</string>
     <string name="setup_step_xiaomi_autostart_acknowledged">Opened — please double-check it\'s turned on</string>
+    <string name="setup_step_samsung_battery_title">Samsung Device Care</string>
+    <string name="setup_step_samsung_battery_short">Samsung may put ScrollGuard to sleep in the background unless it\'s excluded.</string>
+    <string name="setup_step_samsung_battery_why">Samsung phones have their own Device Care battery management, separate from Android\'s own battery settings, that can put ScrollGuard to sleep in the background — which would let blocking quietly stop working without any warning.\n\nTap \"Open Settings\", find ScrollGuard under Battery usage / Sleeping apps, and make sure it is NOT in the sleeping or deep-sleeping list. ScrollGuard can\'t check this from inside the app — Android doesn\'t allow that — so please confirm it yourself.</string>
+    <string name="setup_step_samsung_battery_acknowledged">Opened — please double-check it\'s excluded from sleep</string>
+    <string name="setup_step_oneplus_battery_title">OnePlus Battery Optimization</string>
+    <string name="setup_step_oneplus_battery_short">OxygenOS may restrict ScrollGuard in the background unless it\'s allowed.</string>
+    <string name="setup_step_oneplus_battery_why">OnePlus phones (OxygenOS) have their own extra background-management setting, separate from Android\'s own battery settings, that can silently stop ScrollGuard from running in the background — which would let blocking quietly stop working without any warning.\n\nTap \"Open Settings\" and allow ScrollGuard to auto-launch / run without restriction. ScrollGuard can\'t check this from inside the app — Android doesn\'t allow that — so please confirm it yourself.</string>
+    <string name="setup_step_oneplus_battery_acknowledged">Opened — please double-check it\'s allowed to run</string>
     <string name="setup_step_notifications_title">Notifications</string>
     <string name="setup_step_notifications_why">ScrollGuard shows an ongoing notification with your remaining time, and will alert you if blocking ever stops working. Tap \"Allow\" on the prompt.</string>
     <string name="setup_step_done">Done</string>
@@ -276,5 +286,11 @@
     <string name="cd_info">More information</string>
     <string name="time_limit_info_title">How Free / Lock / Break work</string>
     <string name="time_limit_info_body">Your session runs in a repeating cycle:\n\n• Free — your restricted apps are usable for the number of minutes you set here. This only happens once, right when you tap Start.\n\n• Lock — after Free time runs out, restricted apps are blocked for the Lock duration.\n\n• Break — after each Lock, you get a short Break window (this duration, not Free time) before it locks again. Break repeats with Lock for as long as the session runs.\n\nThis follows real elapsed time even if you never open the app during a Lock or Break window — leaving it alone doesn\'t restart, extend, or skip anything.</string>
+    
+    <!-- Family Hub (Multi-Child) -->
+    <string name="your_family">Your Family</string>
+    <string name="pair_another_child">Pair Another Child</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="status_online">Online</string>
+    <string name="status_offline">Offline</string>
 </resources>
-

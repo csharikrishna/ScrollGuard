@@ -86,6 +86,14 @@ object TimerState {
     // Anchor for delta-based usage accounting during ALLOWED — see catchUp(). Reset whenever
     // a new ALLOWED phase begins and whenever a reboot is detected (elapsedRealtime resets then).
     @Volatile private var lastUsageAccountedElapsed = 0L
+    // Last elapsed-clock time usableRemainingMs was actually written to disk. save() only ran
+    // on phase *transitions* until this was added — meaning a process/service kill mid-ALLOWED
+    // (e.g. an OEM background-kill) would reload the value from the start of the window, silently
+    // re-granting whatever had already been used. Batched like the parental engine's own
+    // consumed-time persistence, not on every tick, to avoid a disk write every second for the
+    // life of a long ALLOWED window.
+    @Volatile private var lastUsablePersistElapsed = 0L
+    private const val USABLE_PERSIST_INTERVAL_MS = 15_000L
 
     // Analytics accounting: only time actually spent in LOCKED counts as "saved."
     // currentPhaseStartElapsed marks (elapsed-clock) when the *current* phase began;
@@ -198,6 +206,7 @@ object TimerState {
         accumulatedLockedMs = 0L
         usableRemainingMs = 0L
         lastUsageAccountedElapsed = nowElapsed
+        lastUsablePersistElapsed = nowElapsed
         clearAllGrace()
         save(context)
     }
@@ -238,6 +247,7 @@ object TimerState {
                 // monitored app is actually in the foreground (see catchUp()).
                 usableRemainingMs = allowDuration * 1000
                 lastUsageAccountedElapsed = nowElapsed
+                lastUsablePersistElapsed = nowElapsed
             }
             Phase.ALLOWED -> {
                 cycleCount++
@@ -273,6 +283,7 @@ object TimerState {
         currentPhaseStartElapsed = 0L
         usableRemainingMs = 0L
         lastUsageAccountedElapsed = 0L
+        lastUsablePersistElapsed = 0L
         clearAllGrace()
         save(context)
     }
@@ -362,6 +373,10 @@ object TimerState {
         if (lastUsageAccountedElapsed == 0L && phase == Phase.ALLOWED) {
             lastUsageAccountedElapsed = SystemClock.elapsedRealtime()
         }
+        // Not persisted — purely an in-memory throttle anchor for batch-persisting
+        // usableRemainingMs (see its declaration). Reset fresh on every load so a just-reloaded
+        // process doesn't immediately think a persist is overdue.
+        lastUsablePersistElapsed = SystemClock.elapsedRealtime()
         // H5: currentStreak removed (dead field)
         totalSecondsSaved = p.getLong("totalSecondsSaved", 0L)
         scheduleEnabled = p.getBoolean("scheduleEnabled", false)
@@ -487,6 +502,13 @@ object TimerState {
                     lastUsageAccountedElapsed = nowElapsed
                     if (isUsingMonitoredApp()) {
                         usableRemainingMs = (usableRemainingMs - delta).coerceAtLeast(0L)
+                        // Batch-persist the in-progress budget so a process/service kill
+                        // mid-window (OEM background-kill, crash) can't silently re-grant
+                        // already-used time on reload — see USABLE_PERSIST_INTERVAL_MS's doc.
+                        if (nowElapsed - lastUsablePersistElapsed >= USABLE_PERSIST_INTERVAL_MS) {
+                            lastUsablePersistElapsed = nowElapsed
+                            save(context)
+                        }
                     }
                     dueForTransition = usableRemainingMs <= 0L
                 }

@@ -58,3 +58,12 @@ skills-lock.json
 /c_*.xml
 /ui_dump*.xml
 
+# Firebase Auth emulator export — contains real password hashes/salts and real email addresses
+# from local testing. Must never be committed. If you need to seed the emulator, re-export it
+# fresh locally rather than relying on a copy in the repo.
+/users.json
+
+# Base64-encoded google-services.json staged here as a copy/paste helper for a GitHub Actions
+# secret — not meant to be committed itself (see android-ci.yml's *_BASE64 secrets pattern).
+/google_services_base64.txt
+
